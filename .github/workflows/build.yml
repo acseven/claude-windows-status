@@ -23,12 +23,16 @@ jobs:
     outputs:
       version: ${{ steps.v.outputs.version }}
       msi: ${{ steps.v.outputs.msi }}
+      release: ${{ steps.v.outputs.release }}
+      prerelease: ${{ steps.v.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - id: v
         shell: bash
+        env:
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             v="${GITHUB_REF_NAME#v}"
@@ -36,16 +40,22 @@ jobs:
             y=${BASH_REMATCH[1]}; m=${BASH_REMATCH[2]}; n=${BASH_REMATCH[3]}
             echo "version=$v" >> "$GITHUB_OUTPUT"
             echo "msi=$((y - 2000)).$m.$n" >> "$GITHUB_OUTPUT"
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
             echo "Version $v from tag"
             exit 0
           fi
           y=$(date -u +%Y); m=$(date -u +%-m)
           last=$(git tag -l "v$y.$m.*" | sed "s/^v$y\.$m\.//" | grep -E '^[0-9]+$' | sort -n | tail -1 || true)
+          release=false; prerelease=false
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.release }}" = "true" ]; then
-            n=$(( ${last:-0} + 1 ))
-          else
-            n=0   # CI builds are YYYY.M.0
+            release=true
+          elif [ "${{ github.event_name }}" = "push" ] && grep -qF '[release]' <<< "$COMMIT_MESSAGE"; then
+            release=true; prerelease=true   # test build requested from a commit message
           fi
+          if [ "$release" = true ]; then n=$(( ${last:-0} + 1 )); else n=0; fi   # CI builds are YYYY.M.0
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
           echo "version=$y.$m.$n" >> "$GITHUB_OUTPUT"
           echo "msi=$((y - 2000)).$m.$n" >> "$GITHUB_OUTPUT"
           echo "Version $y.$m.$n (MSI $((y - 2000)).$m.$n)"
@@ -146,9 +156,9 @@ jobs:
           git push -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" ci-screenshots
 
   # Only on purpose: Actions → build → Run workflow → "Publish a release" (full release),
-  # or pushing a vYYYY.M.N tag (pre-release, for testing).
+  # or a pre-release for testing: push a vYYYY.M.N tag, or a commit whose message contains [release].
   release:
-    if: (github.event_name == 'workflow_dispatch' && inputs.release) || startsWith(github.ref, 'refs/tags/v')
+    if: needs.version.outputs.release == 'true'
     needs: [version, build, smoke]
     runs-on: ubuntu-latest
     steps:
@@ -166,5 +176,5 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: Claude Status ${{ needs.version.outputs.version }}
           generate_release_notes: true
-          prerelease: ${{ github.event_name == 'push' }}
+          prerelease: ${{ needs.version.outputs.prerelease == 'true' }}
           files: dist/*

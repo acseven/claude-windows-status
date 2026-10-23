@@ -170,8 +170,8 @@ current month, builds and smoke-tests everything, and publishes a GitHub release
 - `ClaudeStatus-<version>-win-x64.exe` and `ClaudeStatus-<version>-win-arm64.exe` (portable)
 - `ClaudeStatus-<version>-PolicyDefinitions.zip` (ADMX/ADML)
 
-A test build can also be published as a **pre-release** by pushing a tag:
-`git tag v2026.10.1 && git push origin v2026.10.1` (the tag must be `vYYYY.M.N`).
+A test build can also be published as a **pre-release**, either by pushing a `vYYYY.M.N` tag or
+by pushing a commit whose message contains `[release]` (the next free number is used).
 
 Ordinary pushes build version `YYYY.M.0` and only keep the files as workflow artifacts.
 
