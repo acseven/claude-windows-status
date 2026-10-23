@@ -11,8 +11,8 @@
 
     <!-- AUTOSTART=0 skips the all-users autostart entry (msiexec /i ClaudeStatus-x64.msi AUTOSTART=0, or via a transform for GPO). -->
     <Property Id="AUTOSTART" Value="1" />
-    <Icon Id="AppIcon" SourceFile="../src/ClaudeStatus/app.ico" />
-    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <Icon Id="AppIcon.exe" SourceFile="$(var.PublishDir)/ClaudeStatus.exe" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon.exe" />
     <Property Id="ARPNOMODIFY" Value="1" />
     <Property Id="ARPURLINFOABOUT" Value="https://claude.ai/settings/usage" />
 
@@ -22,7 +22,7 @@
           <File Id="ClaudeStatusExe" Source="$(var.PublishDir)/ClaudeStatus.exe" KeyPath="yes">
             <!-- Advertised shortcut: valid for a per-machine package (ICE38/43/57). -->
             <Shortcut Id="ClaudeStatusShortcut" Directory="ProgramMenuFolder" Name="Claude Status"
-                      Description="Claude usage on the taskbar" WorkingDirectory="INSTALLFOLDER" Advertise="yes" Icon="AppIcon" />
+                      Description="Claude usage on the taskbar" WorkingDirectory="INSTALLFOLDER" Advertise="yes" Icon="AppIcon.exe" />
           </File>
         </Component>
       </Directory>
