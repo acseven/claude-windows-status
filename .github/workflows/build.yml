@@ -112,6 +112,29 @@ jobs:
           name: screenshots-${{ matrix.prefix }}
           path: screenshots/*
 
+  # Publishes the latest smoke screenshots to the orphan branch "ci-screenshots" (force-pushed),
+  # so they can be reviewed and copied into docs/images without downloading artifacts.
+  screenshots:
+    if: github.event_name != 'pull_request'
+    needs: smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: screenshots-*
+          path: shots
+          merge-multiple: true
+      - name: Push to ci-screenshots branch
+        run: |
+          cd shots
+          git init -q -b ci-screenshots
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          echo "Smoke-test screenshots from ${GITHUB_SHA} (${GITHUB_REF_NAME})." > README.md
+          git add -A
+          git commit -qm "Smoke screenshots for ${GITHUB_SHA}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" ci-screenshots
+
   # Only when started by hand: Actions → build → Run workflow → "Publish a release".
   release:
     if: github.event_name == 'workflow_dispatch' && inputs.release

@@ -40,10 +40,3 @@ Invoke-Run 'notification' @('--demo=alert', '--style=bars')               480 12
 Invoke-Run 'signed-out'   @('--style=bars')                               160
 Write-Host "Screenshots in $OutDir"
 
-# Echo the cropped screenshots into the log (base64) so they can be reviewed without artifact access.
-foreach ($f in Get-ChildItem $OutDir -Filter "$Prefix-*.png" | Where-Object Name -notlike '*-full.png') {
-    $b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($f.FullName))
-    Write-Host "=== BEGIN $($f.Name)"
-    for ($i = 0; $i -lt $b64.Length; $i += 4000) { Write-Host $b64.Substring($i, [Math]::Min(4000, $b64.Length - $i)) }
-    Write-Host "=== END $($f.Name)"
-}
