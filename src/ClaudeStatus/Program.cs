@@ -83,13 +83,15 @@ sealed class Shell
             _tray.Notify("Claude Status", "Click here or the tray icon to sign in to your Claude account.");
     }
 
-    void SignIn()
+    void SignIn() => SignIn(false);
+
+    void SignIn(bool otherAccount)
     {
         if (_signingIn) return;
         _signingIn = true;
         try
         {
-            var login = new LoginWindow();
+            var login = new LoginWindow(otherAccount);
             if (login.ShowDialog() == true && !string.IsNullOrEmpty(login.SessionKey))
                 _monitor.SetSessionKey(login.SessionKey);
         }

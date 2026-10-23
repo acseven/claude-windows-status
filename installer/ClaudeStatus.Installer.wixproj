@@ -11,7 +11,11 @@
     <DisplayVersion Condition="'$(DisplayVersion)' == ''">$(Version)</DisplayVersion>
     <OutputName>ClaudeStatus-$(DisplayVersion)-$(Platform)</OutputName>
     <PublishDir Condition="'$(PublishDir)' == ''">../publish/win-$(Platform)</PublishDir>
-    <DefineConstants>Version=$(Version);PublishDir=$(PublishDir)</DefineConstants>
+    <DefineConstants>Version=$(Version);DisplayVersion=$(DisplayVersion);PublishDir=$(PublishDir)</DefineConstants>
     <SuppressValidation>false</SuppressValidation>
   </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="WixToolset.UI.wixext" Version="5.0.2" />
+    <PackageReference Include="WixToolset.Util.wixext" Version="5.0.2" />
+  </ItemGroup>
 </Project>

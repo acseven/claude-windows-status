@@ -14,7 +14,7 @@ public sealed class TrayController : IDisposable
 {
     readonly Settings _settings;
     readonly UsageMonitor _monitor;
-    readonly Action _signIn;
+    readonly Action<bool> _signIn; // true = with a different account
     readonly Action<System.Windows.Point?> _showDetails;
     readonly Action _exit;
 
@@ -30,7 +30,7 @@ public sealed class TrayController : IDisposable
 
     public WinForms.ContextMenuStrip Menu { get; } = new();
 
-    public TrayController(Settings settings, UsageMonitor monitor, Action signIn,
+    public TrayController(Settings settings, UsageMonitor monitor, Action<bool> signIn,
         Action<System.Windows.Point?> showDetails, Action resetPosition, Action exit)
     {
         _settings = settings;
@@ -70,7 +70,8 @@ public sealed class TrayController : IDisposable
         Menu.Items.Add(_notify);
         Menu.Items.Add(_autostart);
         Menu.Items.Add(new WinForms.ToolStripSeparator());
-        Menu.Items.Add("Sign in…", null, (_, _) => _signIn());
+        Menu.Items.Add("Sign in…", null, (_, _) => _signIn(false));
+        Menu.Items.Add("Sign in with a different account…", null, (_, _) => _signIn(true));
         Menu.Items.Add(_signOut);
         Menu.Items.Add(new WinForms.ToolStripSeparator());
         Menu.Items.Add("Exit", null, (_, _) => _exit());
@@ -82,7 +83,7 @@ public sealed class TrayController : IDisposable
             icon.MouseClick += (_, e) =>
             {
                 if (e.Button != WinForms.MouseButtons.Left) return;
-                if (_monitor.State == MonitorState.SignedOut) _signIn();
+                if (_monitor.State == MonitorState.SignedOut) _signIn(false);
                 else _showDetails(null);
             };
         }

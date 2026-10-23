@@ -72,6 +72,10 @@ outlined tile is the 7d limit:
   | 7-day        | 70%, 90%, 100%     |
 
 - **Sign in once** in a built-in Microsoft Edge (WebView2) window, the same way as on claude.ai.
+  Windows single sign-on is on: if your organisation signs in to Claude with Microsoft (Entra ID)
+  SSO, the Microsoft account picker offers the account you are signed in to Windows with, plus
+  *Use another account*. **Sign in with a different account…** in the menu starts from a clean
+  browser profile.
   The session is stored for the current Windows user only, encrypted with DPAPI.
 - **No admin rights** needed to run, and **no .NET install** needed: it ships as a
   self-contained executable.
@@ -80,6 +84,10 @@ outlined tile is the 7d limit:
 
 Download `ClaudeStatus-<version>-x64.msi` (or `-ARM64.msi`) from the Releases page and run it,
 or use the portable `ClaudeStatus-<version>-win-x64.exe`.
+
+The installer wizard shows the licence, lets you choose the install folder and whether Claude
+Status starts automatically for all users, shows progress, and can start the app when it
+finishes.
 
 On first start, click the tray icon and sign in. Windows 11 places new tray icons in the
 overflow area; to keep both icons visible, go to **Settings → Personalization → Taskbar →

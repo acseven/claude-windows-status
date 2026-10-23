@@ -10,6 +10,8 @@ namespace ClaudeStatus;
 /// Sign in to claude.ai inside an embedded Edge (WebView2) window with its own profile,
 /// then pick up the resulting <c>sessionKey</c> cookie. The user signs in exactly as in a browser
 /// (email code, Google, SSO), so the app never sees a password.
+/// Windows single sign-on is enabled: Microsoft work/school (Entra ID) and personal accounts known
+/// to Windows are offered by Microsoft's account picker, as in Edge, with "Use another account".
 /// </summary>
 public sealed class LoginWindow : Window
 {
@@ -18,8 +20,12 @@ public sealed class LoginWindow : Window
 
     public string? SessionKey { get; private set; }
 
-    public LoginWindow()
+    readonly bool _otherAccount;
+
+    /// <param name="otherAccount">Start from a clean browser profile, so no account is pre-selected.</param>
+    public LoginWindow(bool otherAccount = false)
     {
+        _otherAccount = otherAccount;
         Title = "Sign in to Claude";
         Width = 480;
         Height = 720;
@@ -30,7 +36,8 @@ public sealed class LoginWindow : Window
         {
             try
             {
-                var env = await CoreWebView2Environment.CreateAsync(null, Path.Combine(Settings.Folder, "WebView2"));
+                var options = new CoreWebView2EnvironmentOptions { AllowSingleSignOnUsingOSPrimaryAccount = true };
+                var env = await CoreWebView2Environment.CreateAsync(null, Path.Combine(Settings.Folder, "WebView2"), options);
                 await _web.EnsureCoreWebView2Async(env);
             }
             catch (Exception ex)
@@ -41,8 +48,11 @@ public sealed class LoginWindow : Window
                 return;
             }
 
-            // Forget a previous (probably expired) session so we only capture a fresh one.
-            _web.CoreWebView2.CookieManager.DeleteCookies("sessionKey", "https://claude.ai");
+            if (_otherAccount)
+                await _web.CoreWebView2.Profile.ClearBrowsingDataAsync(); // forget remembered identity-provider sessions too
+            else
+                // Forget a previous (probably expired) session so we only capture a fresh one.
+                _web.CoreWebView2.CookieManager.DeleteCookies("sessionKey", "https://claude.ai");
             _web.CoreWebView2.Navigate("https://claude.ai/login");
             _poll.Tick += async (_, _) => await CheckCookieAsync();
             _poll.Start();
