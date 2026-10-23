@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policyDefinitionResources xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                           xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                           revision="1.0" schemaVersion="1.0"
+                           xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions">
+  <displayName>Claude Status</displayName>
+  <description>Settings for the Claude Status taskbar utility.</description>
+  <resources>
+    <stringTable>
+      <string id="SUPPORTED_Win10">Windows 10 or later</string>
+      <string id="Cat_ClaudeStatus">Claude Status</string>
+      <string id="RefreshMinutes">Refresh interval</string>
+      <string id="RefreshMinutes_Help">How often, in minutes (1–60), Claude Status checks usage on claude.ai. When set, users cannot change it.</string>
+      <string id="WidgetStyle">Taskbar display</string>
+      <string id="WidgetStyle_Help">Bars: two rows (5-hour session and 7-day limit) on the taskbar. Compact: one line. Tray icon only: no taskbar widget. When set, users cannot change it.</string>
+      <string id="Style_Bars">Bars (two rows)</string>
+      <string id="Style_Compact">Compact (one line)</string>
+      <string id="Style_IconOnly">Tray icon only</string>
+      <string id="DisableNotifications">Turn off limit notifications</string>
+      <string id="DisableNotifications_Help">Enabled: no Windows notifications when limits reach 70/90/100%. Disabled: notifications are always on. Not configured: users decide.</string>
+    </stringTable>
+    <presentationTable>
+      <presentation id="RefreshMinutes">
+        <decimalTextBox refId="RefreshMinutes" defaultValue="2">Minutes:</decimalTextBox>
+      </presentation>
+      <presentation id="WidgetStyle">
+        <dropdownList refId="WidgetStyle" defaultItem="0">Display:</dropdownList>
+      </presentation>
+    </presentationTable>
+  </resources>
+</policyDefinitionResources>

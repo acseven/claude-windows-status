@@ -9,6 +9,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>app.ico</ApplicationIcon>
     <AssemblyName>ClaudeStatus</AssemblyName>
     <RootNamespace>ClaudeStatus</RootNamespace>
     <Version>0.1.0</Version>

@@ -1,0 +1,15 @@
+<Project Sdk="WixToolset.Sdk/5.0.2">
+  <!--
+    Per-machine MSI for GPO Software Installation / Intune / SCCM.
+    Build after publishing the app:
+      dotnet publish src/ClaudeStatus -c Release -r win-x64 -o publish/win-x64
+      dotnet build installer -c Release -p:Platform=x64 -p:PublishDir=../publish/win-x64 -p:Version=0.1.0
+  -->
+  <PropertyGroup>
+    <OutputName>ClaudeStatus-$(Platform)</OutputName>
+    <Version Condition="'$(Version)' == ''">0.1.0</Version>
+    <PublishDir Condition="'$(PublishDir)' == ''">../publish/win-$(Platform)</PublishDir>
+    <DefineConstants>Version=$(Version);PublishDir=$(PublishDir)</DefineConstants>
+    <SuppressValidation>false</SuppressValidation>
+  </PropertyGroup>
+</Project>

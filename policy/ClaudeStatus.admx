@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policyDefinitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                   revision="1.0" schemaVersion="1.0"
+                   xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions">
+  <policyNamespaces>
+    <target prefix="claudestatus" namespace="ClaudeStatus.Policies" />
+    <using prefix="windows" namespace="Microsoft.Policies.Windows" />
+  </policyNamespaces>
+  <resources minRequiredRevision="1.0" />
+  <supportedOn>
+    <definitions>
+      <definition name="SUPPORTED_Win10" displayName="$(string.SUPPORTED_Win10)" />
+    </definitions>
+  </supportedOn>
+  <categories>
+    <category name="ClaudeStatus" displayName="$(string.Cat_ClaudeStatus)" />
+  </categories>
+  <policies>
+    <policy name="RefreshMinutes" class="Both" displayName="$(string.RefreshMinutes)" explainText="$(string.RefreshMinutes_Help)"
+            presentation="$(presentation.RefreshMinutes)" key="SOFTWARE\Policies\ClaudeStatus">
+      <parentCategory ref="ClaudeStatus" />
+      <supportedOn ref="SUPPORTED_Win10" />
+      <elements>
+        <decimal id="RefreshMinutes" valueName="RefreshMinutes" minValue="1" maxValue="60" />
+      </elements>
+    </policy>
+    <policy name="WidgetStyle" class="Both" displayName="$(string.WidgetStyle)" explainText="$(string.WidgetStyle_Help)"
+            presentation="$(presentation.WidgetStyle)" key="SOFTWARE\Policies\ClaudeStatus">
+      <parentCategory ref="ClaudeStatus" />
+      <supportedOn ref="SUPPORTED_Win10" />
+      <elements>
+        <enum id="WidgetStyle" valueName="WidgetStyle">
+          <item displayName="$(string.Style_Bars)"><value><decimal value="0" /></value></item>
+          <item displayName="$(string.Style_Compact)"><value><decimal value="1" /></value></item>
+          <item displayName="$(string.Style_IconOnly)"><value><decimal value="2" /></value></item>
+        </enum>
+      </elements>
+    </policy>
+    <policy name="DisableNotifications" class="Both" displayName="$(string.DisableNotifications)" explainText="$(string.DisableNotifications_Help)"
+            key="SOFTWARE\Policies\ClaudeStatus" valueName="DisableNotifications">
+      <parentCategory ref="ClaudeStatus" />
+      <supportedOn ref="SUPPORTED_Win10" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+  </policies>
+</policyDefinitions>

@@ -24,10 +24,14 @@ public sealed class TaskbarWidget : Window
     readonly Row _weekly = new("7d");
     readonly TextBlock _status = new() { FontSize = 11, VerticalAlignment = VerticalAlignment.Center };
     readonly StackPanel _rows = new() { VerticalAlignment = VerticalAlignment.Center };
+    readonly StackPanel _compact = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+    readonly System.Windows.Shapes.Ellipse _dot = new() { Width = 7, Height = 7, Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
+    readonly TextBlock _line = new() { FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
 
     IntPtr _hwnd;
     bool _visible;
     bool _light;
+    WidgetStyle _style;
     int _tick;
 
     // Dragging state (physical pixels).
@@ -57,6 +61,9 @@ public sealed class TaskbarWidget : Window
         _rows.Children.Add(_weekly.Panel);
         var root = new Grid { Margin = new Thickness(6, 2, 6, 2) };
         root.Children.Add(_rows);
+        _compact.Children.Add(_dot);
+        _compact.Children.Add(_line);
+        root.Children.Add(_compact);
         root.Children.Add(_status);
         Content = root;
 
@@ -98,7 +105,7 @@ public sealed class TaskbarWidget : Window
             var light = Theme.TaskbarIsLight();
             if (light != _light) ApplyTheme(light);
         }
-        if (_tick % 30 == 0) Render();
+        if (_tick % 30 == 0 || _settings.EffectiveStyle != _style) Render();
         Place();
     }
 
@@ -109,16 +116,19 @@ public sealed class TaskbarWidget : Window
         var track = new SolidColorBrush(light ? Color.FromArgb(0x40, 0, 0, 0) : Color.FromArgb(0x50, 0xFF, 0xFF, 0xFF));
         Foreground = fg;
         _status.Foreground = fg;
+        _line.Foreground = fg;
         _session.SetColors(fg, track);
         _weekly.SetColors(fg, track);
     }
 
     void Render()
     {
+        _style = _settings.EffectiveStyle;
         var snap = _monitor.Last;
         if (snap is null)
         {
             _rows.Visibility = Visibility.Collapsed;
+            _compact.Visibility = Visibility.Collapsed;
             _status.Visibility = Visibility.Visible;
             _status.Text = _monitor.State switch
             {
@@ -131,13 +141,30 @@ public sealed class TaskbarWidget : Window
         }
 
         _status.Visibility = Visibility.Collapsed;
-        _rows.Visibility = Visibility.Visible;
+        var compact = _style == WidgetStyle.Compact;
+        _rows.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+        _compact.Visibility = compact ? Visibility.Visible : Visibility.Collapsed;
         _session.Set(snap.Session);
         _weekly.Set(snap.Weekly);
+        var worst = Math.Max(snap.Session?.Percent ?? 0, snap.Weekly?.Percent ?? 0);
+        _dot.Fill = new SolidColorBrush(Theme.Level(worst));
+        _line.Text = $"5h {Pct(snap.Session)} · 7d {Pct(snap.Weekly)}";
         ToolTip = _monitor.State == MonitorState.Error
             ? $"Last update {snap.FetchedAt:t} – {_monitor.Message}"
             : $"Updated {snap.FetchedAt:t}";
         Opacity = _monitor.State == MonitorState.Error ? 0.6 : 1.0;
+    }
+
+    static string Pct(LimitWindow? w) => w is null ? "–" : $"{w.Percent:0}%";
+
+    /// <summary>Top-right corner in physical pixels, or null when hidden (flyouts anchor here).</summary>
+    public Point? Anchor => _visible && Native.GetWindowRect(_hwnd, out var r) ? new Point(r.Right, r.Top) : null;
+
+    public void ResetPosition()
+    {
+        _settings.WidgetRightOffset = null;
+        _settings.Save();
+        Place();
     }
 
     /// <summary>Keep the widget glued to the taskbar and above it (the taskbar re-takes the top when clicked).</summary>
@@ -146,7 +173,7 @@ public sealed class TaskbarWidget : Window
         if (_hwnd == IntPtr.Zero) return;
 
         var tb = Native.GetTaskbar();
-        var shouldShow = _settings.ShowTaskbarWidget && tb is not null && !tb.AutoHide && !Native.IsForegroundFullscreen();
+        var shouldShow = _settings.EffectiveStyle != WidgetStyle.IconOnly && tb is not null && !tb.AutoHide && !Native.IsForegroundFullscreen();
         if (!shouldShow)
         {
             if (_visible) { Native.ShowWindow(_hwnd, Native.SW_HIDE); _visible = false; }

@@ -26,12 +26,25 @@ public sealed class UsageMonitor : IDisposable
         ApplyInterval();
     }
 
-    public void ApplyInterval() => _timer.Interval = TimeSpan.FromMinutes(Math.Max(1, _settings.RefreshMinutes));
+    public void ApplyInterval() => _timer.Interval = TimeSpan.FromMinutes(_settings.EffectiveRefreshMinutes);
 
     public void Start()
     {
         _timer.Start();
         _ = RefreshAsync();
+    }
+
+    /// <summary>Fixed sample data for screenshots and smoke tests (--demo); nothing is fetched.</summary>
+    public void LoadDemo(bool alert)
+    {
+        var now = DateTimeOffset.Now;
+        Last = new UsageSnapshot(
+        [
+            new("five_hour", "Current session (5h)", alert ? 92 : 42, now.AddMinutes(alert ? 65 : 130)),
+            new("seven_day", "Weekly – all models", alert ? 74 : 18, now.AddDays(4).AddHours(6)),
+            new("seven_day_opus", "Weekly – Opus", alert ? 95 : 74, now.AddDays(4).AddHours(6)),
+        ], "Demo", now);
+        Set(MonitorState.Ok, null);
     }
 
     public void SetSessionKey(string? key)

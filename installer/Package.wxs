@@ -1,0 +1,46 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <!-- UpgradeCode must never change: it lets new versions replace old ones (and GPO upgrades work). -->
+  <Package Name="Claude Status"
+           Manufacturer="Claude Status contributors"
+           Version="$(var.Version)"
+           UpgradeCode="3cfb7184-5671-4234-bda5-0a6928ef18ef"
+           Scope="perMachine">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Claude Status is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- AUTOSTART=0 skips the all-users autostart entry (msiexec /i ClaudeStatus-x64.msi AUTOSTART=0, or via a transform for GPO). -->
+    <Property Id="AUTOSTART" Value="1" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+    <Property Id="ARPURLINFOABOUT" Value="https://claude.ai/settings/usage" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Claude Status">
+        <Component Id="MainExecutable">
+          <File Id="ClaudeStatusExe" Source="$(var.PublishDir)/ClaudeStatus.exe" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Component Id="StartMenuShortcut">
+        <Shortcut Id="ClaudeStatusShortcut" Name="Claude Status" Description="Claude usage on the taskbar"
+                  Target="[INSTALLFOLDER]ClaudeStatus.exe" WorkingDirectory="INSTALLFOLDER" />
+        <RegistryValue Root="HKLM" Key="Software\ClaudeStatus" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Component Id="AutoStartAllUsers" Condition="AUTOSTART = 1" Guid="6f1d2a4e-0f5b-4a37-9a0e-2b8d4c7f1e93">
+        <RegistryValue Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Run" Name="ClaudeStatus"
+                       Type="string" Value="&quot;[INSTALLFOLDER]ClaudeStatus.exe&quot;" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+
+    <Feature Id="Main" Title="Claude Status">
+      <ComponentRef Id="MainExecutable" />
+      <ComponentRef Id="StartMenuShortcut" />
+      <ComponentRef Id="AutoStartAllUsers" />
+    </Feature>
+  </Package>
+</Wix>
