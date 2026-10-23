@@ -1,0 +1,153 @@
+using System.IO;
+using System.Text.Json;
+using System.Windows;
+using System.Windows.Interop;
+using Microsoft.Web.WebView2.Core;
+using Microsoft.Web.WebView2.Wpf;
+
+namespace ClaudeStatus;
+
+/// <summary>
+/// Makes the claude.ai API calls from inside an embedded Edge (WebView2) page, the same browser the
+/// user signed in with. claude.ai sits behind Cloudflare, which rejects plain HTTP clients but lets a
+/// real browser through (and remembers that in its own cookies).
+///
+/// Tenancy: requests run strictly one at a time. For each one, the account's session key is set as
+/// an in-memory session cookie, the request is made, and the cookie is deleted again, so one
+/// account's request can never carry another account's session, and no session is written to disk.
+/// </summary>
+public sealed class BrowserFetcher : IDisposable
+{
+    const string Origin = "https://claude.ai";
+
+    readonly SemaphoreSlim _gate = new(1, 1);
+    readonly Dictionary<string, TaskCompletionSource<(int Status, string Body)>> _pending = new();
+    Window? _host;
+    WebView2? _web;
+    Task? _ready;
+    bool _disposed;
+    bool _reload;
+
+    /// <summary>Cloudflare asked for a check: reload the page (renewing its clearance) before the next request.</summary>
+    public void RenewClearance() => _reload = true;
+
+    public async Task<(int Status, string Body)> GetAsync(string path, string sessionKey, CancellationToken ct)
+    {
+        await _gate.WaitAsync(ct);
+        var cookies = default(CoreWebView2CookieManager);
+        try
+        {
+            await (_ready ??= InitAsync());
+            var core = _web!.CoreWebView2;
+            if (_reload)
+            {
+                _reload = false;
+                await NavigateAsync(core);
+            }
+            cookies = core.CookieManager;
+
+            var cookie = cookies.CreateCookie("sessionKey", sessionKey, ".claude.ai", "/");
+            cookie.IsSecure = true;
+            cookie.IsHttpOnly = true; // never visible to page script
+            cookies.AddOrUpdateCookie(cookie); // no expiry: session cookie, kept in memory only
+
+            var id = Guid.NewGuid().ToString("N");
+            var tcs = new TaskCompletionSource<(int, string)>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _pending[id] = tcs;
+            try
+            {
+                var script =
+                    $$"""
+                    fetch({{JsonSerializer.Serialize(path)}}, { credentials: 'include', headers: { 'Accept': 'application/json' } })
+                      .then(async r => chrome.webview.postMessage(JSON.stringify({ id: '{{id}}', status: r.status, body: await r.text() })))
+                      .catch(e => chrome.webview.postMessage(JSON.stringify({ id: '{{id}}', status: 0, body: String(e) })));
+                    """;
+                await core.ExecuteScriptAsync(script);
+
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                timeout.CancelAfter(TimeSpan.FromSeconds(30));
+                using (timeout.Token.Register(() => tcs.TrySetCanceled()))
+                    return await tcs.Task;
+            }
+            finally
+            {
+                _pending.Remove(id);
+            }
+        }
+        finally
+        {
+            try { cookies?.DeleteCookies("sessionKey", Origin); } catch { /* host already gone */ }
+            _gate.Release();
+        }
+    }
+
+    async Task InitAsync()
+    {
+        // WebView2 needs a real window; keep it off-screen, out of the taskbar and Alt-Tab.
+        _host = new Window
+        {
+            Title = "Claude Status (network)",
+            WindowStyle = WindowStyle.None,
+            ResizeMode = ResizeMode.NoResize,
+            ShowInTaskbar = false,
+            ShowActivated = false,
+            Width = 320,
+            Height = 240,
+            Left = -32000,
+            Top = -32000,
+        };
+        _web = new WebView2();
+        _host.Content = _web;
+        _host.SourceInitialized += (_, _) => Native.MakeToolWindow(new WindowInteropHelper(_host).Handle);
+        // WM_CLOSE from outside (installer, Windows) closes the app via the widget; this window stays.
+        _host.Closing += (_, e) => e.Cancel = !_disposed;
+        _host.Show();
+
+        var options = new CoreWebView2EnvironmentOptions { AllowSingleSignOnUsingOSPrimaryAccount = true };
+        var env = await CoreWebView2Environment.CreateAsync(null, Path.Combine(Settings.Folder, "WebView2"), options);
+        await _web.EnsureCoreWebView2Async(env);
+        var core = _web.CoreWebView2;
+        core.Settings.AreDevToolsEnabled = false;
+        core.Settings.IsStatusBarEnabled = false;
+        core.WebMessageReceived += OnMessage;
+
+        await NavigateAsync(core);
+    }
+
+    /// <summary>Loads a same-origin page to run fetch() from; passing Cloudflare here sets its clearance cookies.</summary>
+    static async Task NavigateAsync(CoreWebView2 core)
+    {
+        var loaded = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void Done(object? s, CoreWebView2NavigationCompletedEventArgs e)
+        {
+            core.NavigationCompleted -= Done;
+            loaded.TrySetResult();
+        }
+        core.NavigationCompleted += Done;
+        core.Navigate(Origin + "/robots.txt");
+        await loaded.Task.WaitAsync(TimeSpan.FromSeconds(30));
+    }
+
+    void OnMessage(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(e.TryGetWebMessageAsString());
+            var id = doc.RootElement.GetProperty("id").GetString();
+            if (id is not null && _pending.TryGetValue(id, out var tcs))
+                tcs.TrySetResult((doc.RootElement.GetProperty("status").GetInt32(), doc.RootElement.GetProperty("body").GetString() ?? ""));
+        }
+        catch
+        {
+            // Not one of ours.
+        }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        foreach (var tcs in _pending.Values) tcs.TrySetCanceled();
+        _web?.Dispose();
+        _host?.Close();
+    }
+}

@@ -73,6 +73,12 @@ Invoke-Run 'compact'      @('--demo', '--style=compact')                  160
 Invoke-Run 'flyout'       @('--demo', '--style=bars', '--open-details')   480
 Invoke-Run 'notification' @('--demo=alert', '--style=bars')               480 12
 Invoke-Run 'signed-out'   @('--style=bars')                               160
+# Network path through the embedded browser (informational: CI machines may be challenged by Cloudflare).
+Write-Host "== network self-test"
+$net = Join-Path $OutDir "$Prefix-network.txt"
+Start-Process -FilePath $Exe -ArgumentList "--selftest-network=`"$net`"" -Wait
+if (Test-Path $net) { Write-Host "network: $(Get-Content $net -Raw)" } else { Write-Host 'network: no result' }
+
 # --quit closes a running copy (single-instance signal).
 Write-Host "== --quit"
 $p = Start-Process -FilePath $Exe -ArgumentList '--demo' -PassThru

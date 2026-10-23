@@ -14,6 +14,8 @@ public sealed class UsageMonitor : IDisposable
     readonly Settings _settings;
     readonly UsageClient _client = new();
     readonly DispatcherTimer _timer = new();
+    readonly DispatcherTimer _retry = new() { Interval = TimeSpan.FromSeconds(20) }; // one quick retry after a transient error
+    bool _retried;
     SavedAccount? _orgAccount;           // account that _org / Organizations belong to
     UsageClient.Organization? _org;
     CancellationTokenSource? _cts;
@@ -38,6 +40,7 @@ public sealed class UsageMonitor : IDisposable
     {
         _settings = settings;
         _timer.Tick += async (_, _) => await RefreshAsync();
+        _retry.Tick += async (_, _) => { _retry.Stop(); await RefreshAsync(); };
         ApplyInterval();
     }
 
@@ -155,6 +158,7 @@ public sealed class UsageMonitor : IDisposable
             var snapshot = await _client.GetUsageAsync(key, _org, scope, cts.Token);
             if (Stale()) return;
             Last = snapshot;
+            _retried = false;
             Set(MonitorState.Ok, null);
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
@@ -188,6 +192,11 @@ public sealed class UsageMonitor : IDisposable
             if (Stale()) return;
             // Keep showing the last good snapshot (same account) on transient failures.
             Set(MonitorState.Error, ex.Message);
+            if (!_retried)
+            {
+                _retried = true;
+                _retry.Start();
+            }
         }
     }
 
@@ -201,6 +210,7 @@ public sealed class UsageMonitor : IDisposable
     public void Dispose()
     {
         _timer.Stop();
+        _retry.Stop();
         _cts?.Cancel();
         _client.Dispose();
     }

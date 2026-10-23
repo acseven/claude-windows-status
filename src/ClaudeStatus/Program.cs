@@ -12,6 +12,11 @@ static class Program
     static void Main(string[] args)
     {
         var options = Options.Parse(args);
+        if (options.SelfTestFile is { } selfTest)
+        {
+            RunNetworkSelfTest(selfTest);
+            return;
+        }
         using var mutex = new Mutex(true, @"Local\ClaudeStatus.SingleInstance", out var first);
         if (!first)
         {
@@ -63,6 +68,34 @@ static class Program
         app.Run();
     }
 
+    /// <summary>
+    /// --selftest-network=FILE: one unauthenticated request through the embedded browser, result written
+    /// to FILE. A JSON 401/403 means claude.ai answered (Cloudflare let the browser through); an HTML
+    /// 403 means Cloudflare blocked it. Used by CI; touches no settings or accounts.
+    /// </summary>
+    static void RunNetworkSelfTest(string file)
+    {
+        var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+        app.Startup += async (_, _) =>
+        {
+            using var fetcher = new BrowserFetcher();
+            string result;
+            try
+            {
+                var (status, body) = await fetcher.GetAsync("/api/organizations", "selftest-invalid", CancellationToken.None);
+                var kind = body.TrimStart().StartsWith('{') || body.TrimStart().StartsWith('[') ? "json" : "html";
+                result = $"status={status} kind={kind} body={body[..Math.Min(body.Length, 200)].ReplaceLineEndings(" ")}";
+            }
+            catch (Exception ex)
+            {
+                result = "error=" + ex.GetType().Name + ": " + ex.Message;
+            }
+            System.IO.File.WriteAllText(file, result);
+            app.Shutdown();
+        };
+        app.Run();
+    }
+
     /// <summary>True when the copy already running in this session is another file or version.</summary>
     static bool RunningCopyDiffers()
     {
@@ -110,7 +143,7 @@ static class Program
 /// overrides the display for this run, --open-details opens the flyout (used for screenshots),
 /// --quit closes a running copy.
 /// </summary>
-sealed record Options(bool Demo, bool DemoAlert, WidgetStyle? Style, bool OpenDetails, bool Quit)
+sealed record Options(bool Demo, bool DemoAlert, WidgetStyle? Style, bool OpenDetails, bool Quit, string? SelfTestFile)
 {
     public static Options Parse(string[] args)
     {
@@ -122,7 +155,8 @@ sealed record Options(bool Demo, bool DemoAlert, WidgetStyle? Style, bool OpenDe
             "icon" => WidgetStyle.IconOnly,
             _ => (WidgetStyle?)null,
         };
-        return new Options(Has("--demo") || Has("--demo=alert"), Has("--demo=alert"), style, Has("--open-details"), Has("--quit"));
+        var selfTest = args.FirstOrDefault(a => a.StartsWith("--selftest-network=", StringComparison.OrdinalIgnoreCase))?["--selftest-network=".Length..];
+        return new Options(Has("--demo") || Has("--demo=alert"), Has("--demo=alert"), style, Has("--open-details"), Has("--quit"), selfTest);
     }
 }
 

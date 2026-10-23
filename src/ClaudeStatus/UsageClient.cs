@@ -21,25 +21,14 @@ public sealed class PolicyException(string message) : Exception(message);
 
 /// <summary>
 /// Client for the (undocumented) claude.ai web endpoints that the Settings → Usage page uses.
+/// Requests go through <see cref="BrowserFetcher"/> (embedded Edge), because Cloudflare blocks plain HTTP clients.
 /// These are the same limits Claude Desktop is subject to; they can change without notice.
 /// </summary>
 public sealed class UsageClient : IDisposable
 {
     const string BaseUrl = "https://claude.ai";
 
-    readonly HttpClient _http;
-
-    public UsageClient()
-    {
-        _http = new HttpClient(new HttpClientHandler { UseCookies = false, AutomaticDecompression = DecompressionMethods.All })
-        {
-            BaseAddress = new Uri(BaseUrl),
-            Timeout = TimeSpan.FromSeconds(20),
-        };
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36");
-        _http.DefaultRequestHeaders.Accept.ParseAdd("application/json");
-    }
+    readonly BrowserFetcher _browser = new();
 
     public sealed record Organization(string Id, string Name, string[] Capabilities);
 
@@ -145,26 +134,26 @@ public sealed class UsageClient : IDisposable
 
     async Task<JsonDocument> GetJsonAsync(string path, string sessionKey, CancellationToken ct)
     {
-        using var req = new HttpRequestMessage(HttpMethod.Get, path);
-        req.Headers.Add("Cookie", "sessionKey=" + sessionKey);
-        using var resp = await _http.SendAsync(req, ct);
-        var body = await resp.Content.ReadAsStringAsync(ct);
+        var (status, body) = await _browser.GetAsync(path, sessionKey, ct);
 
-        if (resp.StatusCode is HttpStatusCode.Unauthorized)
+        if (status == 0)
+            throw new HttpRequestException("Could not reach claude.ai: " + body);
+        if (status == 401)
             throw new AuthException("Session expired – sign in again.");
-        if (resp.StatusCode is HttpStatusCode.Forbidden)
+        if (status == 403)
         {
             // An HTML 403 is a Cloudflare challenge, a JSON 403 is a rejected session.
-            throw body.TrimStart().StartsWith('{')
-                ? new AuthException("Session rejected – sign in again.")
-                : new HttpRequestException("claude.ai blocked the request (Cloudflare). Will retry.");
+            if (body.TrimStart().StartsWith('{')) throw new AuthException("Session rejected – sign in again.");
+            _browser.RenewClearance();
+            throw new HttpRequestException("claude.ai is asking for a browser check (Cloudflare). Will retry.");
         }
-        if ((int)resp.StatusCode == 429)
+        if (status == 429)
             throw new HttpRequestException("Rate limited by claude.ai. Will retry.");
-        resp.EnsureSuccessStatusCode();
+        if (status is < 200 or > 299)
+            throw new HttpRequestException($"claude.ai returned HTTP {status}.", null, (HttpStatusCode)status);
 
         return JsonDocument.Parse(body);
     }
 
-    public void Dispose() => _http.Dispose();
+    public void Dispose() => _browser.Dispose();
 }
