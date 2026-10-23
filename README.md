@@ -68,8 +68,8 @@ Limit notification:
 
 ## Install (single PC)
 
-Download `ClaudeStatus-x64.msi` (or `ClaudeStatus-ARM64.msi`) from the Releases page and run it,
-or use the portable `ClaudeStatus-win-x64.exe`.
+Download `ClaudeStatus-<version>-x64.msi` (or `-ARM64.msi`) from the Releases page and run it,
+or use the portable `ClaudeStatus-<version>-win-x64.exe`.
 
 On first start, click the tray icon and sign in. Windows 11 places new tray icons in the
 overflow area; to keep both icons visible, go to **Settings → Personalization → Taskbar →
@@ -79,7 +79,7 @@ Other system tray icons** and turn on both *Claude Status* entries.
 
 ### 1. Software installation
 
-1. Copy `ClaudeStatus-x64.msi` to a share that the computer accounts can read, for example
+1. Copy `ClaudeStatus-<version>-x64.msi` to a share that the computer accounts can read, for example
    `\\fileserver\deploy$\ClaudeStatus\`.
 2. In **Group Policy Management**, edit a GPO linked to the target computers' OU:
    **Computer Configuration → Policies → Software Settings → Software installation →
@@ -88,7 +88,7 @@ Other system tray icons** and turn on both *Claude Status* entries.
    menu shortcut, and starts automatically for every user at sign-in (an HKLM `Run` entry).
 
 To skip the autostart entry, deploy with `AUTOSTART=0`. Use a transform (`.mst`) for GPO, or
-`msiexec /i ClaudeStatus-x64.msi AUTOSTART=0 /qn` for Intune, SCCM or scripts.
+`msiexec /i ClaudeStatus-<version>-x64.msi AUTOSTART=0 /qn` for Intune, SCCM or scripts.
 
 Upgrades: add the newer MSI to the same GPO as an upgrade of the existing package. All builds
 share one UpgradeCode, so the new version replaces the old one.
@@ -135,13 +135,32 @@ delete the folder above to remove it.
 Requires the .NET 8 SDK on Windows.
 
 ```powershell
-dotnet publish src/ClaudeStatus -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:DebugType=none -o publish/win-x64
-dotnet build installer -c Release -p:Platform=x64 -p:PublishDir=$PWD/publish/win-x64 -p:Version=0.1.0
+dotnet publish src/ClaudeStatus -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:DebugType=none -p:Version=2026.10.1 -o publish/win-x64
+dotnet build installer -c Release -p:Platform=x64 -p:PublishDir=$PWD/publish/win-x64 -p:Version=26.10.1 -p:DisplayVersion=2026.10.1
 ```
 
 The MSI is built with [WiX Toolset](https://wixtoolset.org/) v5, which is restored from NuGet
-automatically. Pushing a `v*` tag builds everything and attaches the MSIs, the portable EXEs and
-the policy templates to a GitHub release.
+automatically.
+
+## Versions and releases
+
+Versions are **YYYY.M.number**: year, month, and a counter that restarts each month
+(`2026.10.1`, `2026.10.2`, `2026.11.1`). Tags (`v2026.10.1`), release names, file names and the
+app's own version all use this form.
+
+The only exception is the MSI's internal ProductVersion: Windows Installer allows at most 255 in
+the first field, so it is **YY.M.number** (`26.10.1`). Upgrades compare correctly, and
+Add/Remove Programs shows this short form.
+
+Releases are never published automatically. When a build is ready, go to **Actions → build →
+Run workflow** and tick **Publish a release**. The workflow picks the next free number for the
+current month, builds and smoke-tests everything, and publishes a GitHub release with:
+
+- `ClaudeStatus-<version>-x64.msi` and `ClaudeStatus-<version>-ARM64.msi`
+- `ClaudeStatus-<version>-win-x64.exe` and `ClaudeStatus-<version>-win-arm64.exe` (portable)
+- `ClaudeStatus-<version>-PolicyDefinitions.zip` (ADMX/ADML)
+
+Ordinary pushes build version `YYYY.M.0` and only keep the files as workflow artifacts.
 
 ## Verification
 
