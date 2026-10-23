@@ -21,7 +21,13 @@ public sealed class TrayController : IDisposable
     readonly WinForms.NotifyIcon _icon = new();       // 5h; also carries the notifications
     readonly WinForms.NotifyIcon _weeklyIcon = new(); // 7d
     readonly WinForms.ToolStripMenuItem _header = new() { Enabled = false };
-    readonly WinForms.ToolStripMenuItem _style = new("Taskbar display");
+    readonly WinForms.ToolStripMenuItem _display = new("Display");
+    readonly WinForms.ToolStripMenuItem _showWidget = new("Taskbar widget");
+    readonly WinForms.ToolStripMenuItem _showSession = new("5-hour tray icon");
+    readonly WinForms.ToolStripMenuItem _showWeekly = new("7-day tray icon");
+    readonly WinForms.ToolStripMenuItem _bars = new("Widget: two rows") { Tag = WidgetStyle.Bars };
+    readonly WinForms.ToolStripMenuItem _compact = new("Widget: one line") { Tag = WidgetStyle.Compact };
+    readonly System.Windows.Forms.Timer _hideAfterNotify = new() { Interval = 15_000 };
     readonly WinForms.ToolStripMenuItem _interval = new("Refresh every");
     readonly WinForms.ToolStripMenuItem _notify = new("Notifications");
     readonly WinForms.ToolStripMenuItem _autostart = new("Start with Windows");
@@ -41,14 +47,20 @@ public sealed class TrayController : IDisposable
         _showDetails = showDetails;
         _exit = exit;
 
-        foreach (var (label, style) in new[] { ("Bars (two rows)", WidgetStyle.Bars), ("Compact (one line)", WidgetStyle.Compact), ("Tray icon only", WidgetStyle.IconOnly) })
-        {
-            var item = new WinForms.ToolStripMenuItem(label) { Tag = style };
-            item.Click += (_, _) => { _settings.WidgetStyle = style; _settings.Save(); SyncMenu(); };
-            _style.DropDownItems.Add(item);
-        }
-        _style.DropDownItems.Add(new WinForms.ToolStripSeparator());
-        _style.DropDownItems.Add("Reset position", null, (_, _) => resetPosition());
+        // Display ▸ three independent switches, then the widget layout.
+        _showWidget.Click += (_, _) => Toggle(() => _settings.ShowTaskbarWidget = !_settings.ShowTaskbarWidget);
+        _showSession.Click += (_, _) => Toggle(() => _settings.ShowSessionTrayIcon = !_settings.ShowSessionTrayIcon);
+        _showWeekly.Click += (_, _) => Toggle(() => _settings.ShowWeeklyTrayIcon = !_settings.ShowWeeklyTrayIcon);
+        foreach (var item in new[] { _bars, _compact })
+            item.Click += (_, _) => { _settings.WidgetStyle = (WidgetStyle)item.Tag!; _settings.Save(); SyncMenu(); };
+        _display.DropDownItems.Add(_showWidget);
+        _display.DropDownItems.Add(_showSession);
+        _display.DropDownItems.Add(_showWeekly);
+        _display.DropDownItems.Add(new WinForms.ToolStripSeparator());
+        _display.DropDownItems.Add(_bars);
+        _display.DropDownItems.Add(_compact);
+        _display.DropDownItems.Add("Reset widget position", null, (_, _) => resetPosition());
+        _hideAfterNotify.Tick += (_, _) => { _hideAfterNotify.Stop(); ApplyIconVisibility(); };
 
         foreach (var minutes in new[] { 1, 2, 5, 10, 15 })
         {
@@ -67,7 +79,7 @@ public sealed class TrayController : IDisposable
         Menu.Items.Add("Refresh now", null, async (_, _) => await _monitor.RefreshAsync());
         Menu.Items.Add("Open usage page", null, (_, _) => OpenUsagePage());
         Menu.Items.Add(new WinForms.ToolStripSeparator());
-        Menu.Items.Add(_style);
+        Menu.Items.Add(_display);
         Menu.Items.Add(_interval);
         Menu.Items.Add(_notify);
         Menu.Items.Add(_autostart);
@@ -93,23 +105,54 @@ public sealed class TrayController : IDisposable
 
         _monitor.Changed += Render;
         Render();
-        _weeklyIcon.Visible = true;
-        _icon.Visible = true;
+        ApplyIconVisibility();
     }
 
     public static void OpenUsagePage() =>
         Process.Start(new ProcessStartInfo("https://claude.ai/settings/usage") { UseShellExecute = true });
 
     /// <summary>Windows 10/11 show this as a native toast in the notification centre.</summary>
-    public void Notify(string title, string text) =>
-        _icon.ShowBalloonTip(10_000, title, text, WinForms.ToolTipIcon.Warning);
+    public void Notify(string title, string text)
+    {
+        // A notification needs a visible icon: use one that is shown, or show the 5h icon briefly.
+        var icon = _icon.Visible ? _icon : _weeklyIcon.Visible ? _weeklyIcon : null;
+        if (icon is null)
+        {
+            icon = _icon;
+            icon.Visible = true;
+            _hideAfterNotify.Stop();
+            _hideAfterNotify.Start();
+        }
+        icon.ShowBalloonTip(10_000, title, text, WinForms.ToolTipIcon.Warning);
+    }
+
+    void Toggle(Action change)
+    {
+        change();
+        _settings.Save();
+        ApplyIconVisibility();
+        SyncMenu();
+        if (!_settings.EffectiveShowWidget && !_settings.ShowSessionTrayIcon && !_settings.ShowWeeklyTrayIcon)
+            Notify("Claude Status is hidden", "Start Claude Status from the Start menu to open it again.");
+    }
+
+    void ApplyIconVisibility()
+    {
+        // Added right to left in the tray: 7d first so 5h ends up on its left.
+        _weeklyIcon.Visible = _settings.ShowWeeklyTrayIcon;
+        _icon.Visible = _settings.ShowSessionTrayIcon;
+    }
 
     void SyncMenu()
     {
         var p = Policy.Current;
-        foreach (WinForms.ToolStripItem i in _style.DropDownItems)
-            if (i is WinForms.ToolStripMenuItem m && m.Tag is WidgetStyle s) m.Checked = s == _settings.EffectiveStyle;
-        _style.Enabled = p.WidgetStyle is null;
+        _showWidget.Checked = _settings.EffectiveShowWidget;
+        _showWidget.Enabled = p.WidgetStyle is null;
+        _showSession.Checked = _settings.ShowSessionTrayIcon;
+        _showWeekly.Checked = _settings.ShowWeeklyTrayIcon;
+        _bars.Checked = _settings.EffectiveStyle == WidgetStyle.Bars;
+        _compact.Checked = _settings.EffectiveStyle == WidgetStyle.Compact;
+        _bars.Enabled = _compact.Enabled = p.WidgetStyle is null && _settings.EffectiveShowWidget;
         foreach (WinForms.ToolStripMenuItem m in _interval.DropDownItems)
             m.Checked = (int)m.Tag! == _settings.EffectiveRefreshMinutes;
         _interval.Enabled = p.RefreshMinutes is null;
@@ -254,6 +297,7 @@ public sealed class TrayController : IDisposable
 
     public void Dispose()
     {
+        _hideAfterNotify.Dispose();
         _monitor.Changed -= Render;
         foreach (var icon in new[] { _icon, _weeklyIcon })
         {

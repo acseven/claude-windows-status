@@ -60,6 +60,9 @@ outlined tile is the 7d limit:
   (the tray icons remain). It is also hidden on vertical taskbars. You can drag it sideways within
   that free space. It hides when the taskbar
   auto-hides or a full-screen app is in front, and follows the light/dark Windows mode.
+- **Choose what is shown** under **Display** in the menu: the taskbar widget, the 5-hour tray icon
+  and the 7-day tray icon can each be turned on or off. With everything off, start Claude Status
+  from the Start menu to open it; limit notifications still appear.
 - **Two tray icons**, one for 5h and one for 7d. Each shows the percentage and is coloured by
   level: normal, amber from 70%, red from 90%.
 - **Details flyout** with every limit the account has (session, weekly, Opus/Sonnet weekly,

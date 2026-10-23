@@ -38,7 +38,11 @@ public sealed class Settings
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? OrganizationId { get; set; }
 
     public int RefreshMinutes { get; set; } = 2;
+    /// <summary>Layout of the taskbar widget (Bars or Compact; IconOnly is the pre-2026.10.6 "widget off").</summary>
     public WidgetStyle WidgetStyle { get; set; } = WidgetStyle.Bars;
+    public bool ShowTaskbarWidget { get; set; } = true;
+    public bool ShowSessionTrayIcon { get; set; } = true;
+    public bool ShowWeeklyTrayIcon { get; set; } = true;
     public bool NotificationsEnabled { get; set; } = true;
 
     /// <summary>"window:threshold" → resets_at of the window we last notified for, so each alert fires once per window.</summary>
@@ -116,7 +120,18 @@ public sealed class Settings
     }
 
     // Values in effect after Group Policy overrides.
-    [JsonIgnore] public WidgetStyle EffectiveStyle => Policy.Current.WidgetStyle ?? WidgetStyle;
+    /// <summary>Widget layout in effect: Bars or Compact.</summary>
+    [JsonIgnore] public WidgetStyle EffectiveStyle =>
+        Policy.Current.WidgetStyle is WidgetStyle.Bars or WidgetStyle.Compact ? Policy.Current.WidgetStyle.Value
+        : WidgetStyle == WidgetStyle.Compact ? WidgetStyle.Compact : WidgetStyle.Bars;
+
+    /// <summary>Policy "tray icons only" hides the widget; policy Bars/Compact forces it on.</summary>
+    [JsonIgnore] public bool EffectiveShowWidget => Policy.Current.WidgetStyle switch
+    {
+        WidgetStyle.IconOnly => false,
+        not null => true,
+        null => ShowTaskbarWidget,
+    };
     [JsonIgnore] public int EffectiveRefreshMinutes => Policy.Current.RefreshMinutes ?? Math.Clamp(RefreshMinutes, 1, 60);
     [JsonIgnore] public bool EffectiveNotifications => Policy.Current.DisableNotifications is bool off ? !off : NotificationsEnabled;
 
@@ -129,6 +144,11 @@ public sealed class Settings
             if (File.Exists(FilePath))
             {
                 var s = JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath), JsonOptions) ?? new Settings();
+                if (s.WidgetStyle == WidgetStyle.IconOnly)
+                {
+                    s.ShowTaskbarWidget = false;
+                    s.WidgetStyle = WidgetStyle.Bars;
+                }
                 if (s.ProtectedSessionKey is { } legacy && s.Accounts.Count == 0)
                     s.Accounts.Add(new SavedAccount { Label = "Account 1", ProtectedSessionKey = legacy, OrganizationId = s.OrganizationId });
                 s.ProtectedSessionKey = null;

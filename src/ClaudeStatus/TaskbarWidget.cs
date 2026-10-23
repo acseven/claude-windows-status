@@ -184,7 +184,7 @@ public sealed class TaskbarWidget : Window
         if (_hwnd == IntPtr.Zero) return;
 
         var tb = Native.GetTaskbar();
-        var shouldShow = _settings.EffectiveStyle != WidgetStyle.IconOnly && tb is not null && !tb.AutoHide && !Native.IsForegroundFullscreen();
+        var shouldShow = _settings.EffectiveShowWidget && tb is not null && !tb.AutoHide && !Native.IsForegroundFullscreen();
         if (!shouldShow)
         {
             if (_visible) { Native.ShowWindow(_hwnd, Native.SW_HIDE); _visible = false; }

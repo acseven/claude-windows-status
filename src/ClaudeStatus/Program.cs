@@ -186,7 +186,8 @@ sealed class Shell
         _options = options;
         // Demo runs never touch the user's saved settings or session.
         _settings = options.Demo ? new Settings { InMemoryOnly = true } : Settings.Load();
-        if (options.Style is { } style) _settings.WidgetStyle = style;
+        if (options.Style is WidgetStyle.IconOnly) _settings.ShowTaskbarWidget = false;
+        else if (options.Style is { } style) _settings.WidgetStyle = style;
         _monitor = new UsageMonitor(_settings);
         _tray = new TrayController(_settings, _monitor, SignIn, ShowDetails, () => _widget!.ResetPosition(), Exit);
         _widget = new TaskbarWidget(_settings, _monitor, _tray.ShowMenuAt, ShowDetails);
