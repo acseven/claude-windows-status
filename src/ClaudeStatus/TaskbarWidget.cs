@@ -158,6 +158,15 @@ public sealed class TaskbarWidget : Window
 
     static string Pct(LimitWindow? w) => w is null ? "–" : $"{w.Percent:0}%";
 
+    (int Left, int Right)? FreeGap(Native.RECT taskbar, int trayLeft, double scale)
+    {
+        // Taskbar buttons move as apps open and close; re-scan every few seconds.
+        if (_tick % 3 == 0 || _occupied.Count == 0) _occupied = TaskbarLayout.OccupiedRanges(taskbar, trayLeft);
+        if (_occupied.Count == 0) return null; // there is always a Start button: empty means unknown
+        var margin = (int)(8 * scale);
+        return (_occupied.Max(o => o.Right) + margin, trayLeft - margin);
+    }
+
     /// <summary>Top-right corner in physical pixels, or null when hidden (flyouts anchor here).</summary>
     public Point? Anchor => _visible && Native.GetWindowRect(_hwnd, out var r) ? new Point(r.Right, r.Top) : null;
 
@@ -186,26 +195,22 @@ public sealed class TaskbarWidget : Window
         var scale = Native.GetDpiForWindow(_hwnd) / 96.0;
         int x, y;
 
-        if (tb.Edge is Native.Edge.Bottom or Native.Edge.Top)
+        // Only ever shown in the free gap between the last taskbar button and the tray; never on top of
+        // icons. No gap, a vertical taskbar, or unknown button positions → hidden (tray icons remain).
+        var gap = tb.Edge is Native.Edge.Bottom or Native.Edge.Top && tb.Tray is { } tray
+            ? FreeGap(b, tray.Left, scale)
+            : null;
+        if (gap is not { } g || g.Right - g.Left < me.Width)
         {
-            int right;
-            if (_settings.WidgetRightOffset is int off)
-                right = b.Right - off;
-            else
-            {
-                var trayLeft = tb.Tray?.Left ?? b.Right - (int)(260 * scale);
-                // Taskbar buttons move as apps open and close; re-scan every few seconds.
-                if (_tick % 3 == 0) _occupied = TaskbarLayout.OccupiedRanges(b, trayLeft);
-                right = TaskbarLayout.FitRight(trayLeft - (int)(4 * scale), me.Width, b.Left, _occupied, (int)(6 * scale));
-            }
-            x = Math.Clamp(right - me.Width, b.Left, Math.Max(b.Left, b.Right - me.Width));
-            y = b.Top + (b.Height - me.Height) / 2;
+            if (_visible) { Native.ShowWindow(_hwnd, Native.SW_HIDE); _visible = false; }
+            return;
         }
-        else
-        {
-            x = b.Left + (b.Width - me.Width) / 2;
-            y = (tb.Tray?.Top ?? b.Bottom - (int)(200 * scale)) - me.Height - (int)(4 * scale);
-        }
+
+        var right = _settings.WidgetRightOffset is int off
+            ? Math.Clamp(b.Right - off, g.Left + me.Width, g.Right)
+            : g.Right;
+        x = right - me.Width;
+        y = b.Top + (b.Height - me.Height) / 2;
 
         Native.SetWindowPos(_hwnd, Native.HWND_TOPMOST, x, y, 0, 0,
             Native.SWP_NOSIZE | Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);

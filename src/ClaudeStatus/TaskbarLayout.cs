@@ -4,8 +4,8 @@ namespace ClaudeStatus;
 
 /// <summary>
 /// Finds where the taskbar's own buttons are (Start, search, pinned/running apps) via UI Automation,
-/// so the widget can sit in free space. Windows 11 centres the app buttons and reserves no room for
-/// third-party content, so on narrow screens "next to the tray" can land on top of them.
+/// so the widget is only shown in the free gap between the last button and the tray. Windows 11
+/// centres the app buttons and reserves no room for third-party content.
 /// </summary>
 static class TaskbarLayout
 {
@@ -38,23 +38,5 @@ static class TaskbarLayout
             // UI Automation can fail while Explorer restarts; treat as "nothing known".
         }
         return ranges;
-    }
-
-    /// <summary>
-    /// Right edge for a widget of width <paramref name="width"/>: the preferred spot if it is free,
-    /// otherwise the nearest free gap to its left; the preferred spot if nothing fits.
-    /// </summary>
-    public static int FitRight(int preferredRight, int width, int minLeft, IReadOnlyList<(int Left, int Right)> occupied, int margin)
-    {
-        var right = preferredRight;
-        for (var guard = 0; guard < 64; guard++)
-        {
-            var left = right - width;
-            if (left < minLeft) return preferredRight;
-            var hit = occupied.Where(o => o.Left < right + margin && o.Right > left - margin).ToList();
-            if (hit.Count == 0) return right;
-            right = hit.Min(o => o.Left) - margin;
-        }
-        return preferredRight;
     }
 }
