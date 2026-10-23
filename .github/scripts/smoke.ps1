@@ -3,7 +3,8 @@
 param(
     [Parameter(Mandatory)] [string] $Exe,
     [Parameter(Mandatory)] [string] $OutDir,
-    [string] $Prefix = 'win'
+    [string] $Prefix = 'win',
+    [string] $Msi
 )
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms, System.Drawing
@@ -72,5 +73,31 @@ Invoke-Run 'compact'      @('--demo', '--style=compact')                  160
 Invoke-Run 'flyout'       @('--demo', '--style=bars', '--open-details')   480
 Invoke-Run 'notification' @('--demo=alert', '--style=bars')               480 12
 Invoke-Run 'signed-out'   @('--style=bars')                               160
+if ($Msi) {
+    # Installer wizard: open it, capture the first page, cancel.
+    Write-Host "== installer wizard"
+    $ui = Start-Process msiexec.exe -ArgumentList @('/i', "`"$Msi`"") -PassThru
+    Start-Sleep -Seconds 10
+    Save-Screen 'installer' 600
+    Stop-Process -Id $ui.Id -Force -ErrorAction SilentlyContinue
+    Get-Process msiexec -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 5
+
+    # Silent install / uninstall, as GPO or Intune would do it.
+    Write-Host "== silent install"
+    $log = Join-Path $OutDir "$Prefix-install.log"
+    $p = Start-Process msiexec.exe -ArgumentList @('/i', "`"$Msi`"", '/qn', '/l*v', "`"$log`"") -Wait -PassThru
+    if ($p.ExitCode -ne 0) { throw "silent install failed: $($p.ExitCode)" }
+    $exe = Join-Path $env:ProgramFiles 'Claude Status\ClaudeStatus.exe'
+    if (-not (Test-Path $exe)) { throw "not installed: $exe" }
+    $run = Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Run' -Name ClaudeStatus -ErrorAction SilentlyContinue
+    if (-not $run) { throw 'autostart entry missing' }
+    Write-Host "installed: $exe; autostart: $($run.ClaudeStatus)"
+    $p = Start-Process msiexec.exe -ArgumentList @('/x', "`"$Msi`"", '/qn') -Wait -PassThru
+    if ($p.ExitCode -ne 0) { throw "silent uninstall failed: $($p.ExitCode)" }
+    if (Test-Path $exe) { throw 'uninstall left the exe behind' }
+    Write-Host 'silent install/uninstall OK'
+}
+
 Write-Host "Screenshots in $OutDir"
 

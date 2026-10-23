@@ -125,7 +125,7 @@ jobs:
           path: dist
       - name: Run and capture
         shell: pwsh
-        run: ./.github/scripts/smoke.ps1 -Exe (Get-ChildItem dist/ClaudeStatus-*-win-x64.exe).FullName -OutDir screenshots -Prefix ${{ matrix.prefix }}
+        run: ./.github/scripts/smoke.ps1 -Exe (Get-ChildItem dist/ClaudeStatus-*-win-x64.exe).FullName -Msi (Get-ChildItem dist/ClaudeStatus-*-x64.msi).FullName -OutDir screenshots -Prefix ${{ matrix.prefix }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
