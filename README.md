@@ -227,7 +227,10 @@ Command-line switches, useful for testing:
 ## How it works
 
 - `UsageClient` calls `https://claude.ai/api/organizations` and
-  `/api/organizations/{id}/usage` with the signed-in session. Every object in the response that
+  `/api/organizations/{id}/usage` with the signed-in session. claude.ai is behind Cloudflare, which
+  blocks plain HTTP clients, so `BrowserFetcher` makes these calls with `fetch()` inside a hidden
+  embedded Edge (WebView2) page. Requests run one at a time; each sets the account's session as an
+  in-memory cookie and removes it afterwards, so accounts never share a request. Every object in the response that
   has a `utilization` field becomes a limit row, so new limit types appear without code changes.
 - `TaskbarWidget` is a borderless, always-on-top, non-activating window placed over the taskbar
   next to the notification area. `TaskbarLayout` reads the taskbar buttons' positions through UI
