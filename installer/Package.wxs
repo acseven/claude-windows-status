@@ -11,24 +11,24 @@
 
     <!-- AUTOSTART=0 skips the all-users autostart entry (msiexec /i ClaudeStatus-x64.msi AUTOSTART=0, or via a transform for GPO). -->
     <Property Id="AUTOSTART" Value="1" />
+    <Icon Id="AppIcon" SourceFile="../src/ClaudeStatus/app.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
     <Property Id="ARPNOMODIFY" Value="1" />
     <Property Id="ARPURLINFOABOUT" Value="https://claude.ai/settings/usage" />
 
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="Claude Status">
         <Component Id="MainExecutable">
-          <File Id="ClaudeStatusExe" Source="$(var.PublishDir)/ClaudeStatus.exe" KeyPath="yes" />
+          <File Id="ClaudeStatusExe" Source="$(var.PublishDir)/ClaudeStatus.exe" KeyPath="yes">
+            <!-- Advertised shortcut: valid for a per-machine package (ICE38/43/57). -->
+            <Shortcut Id="ClaudeStatusShortcut" Directory="ProgramMenuFolder" Name="Claude Status"
+                      Description="Claude usage on the taskbar" WorkingDirectory="INSTALLFOLDER" Advertise="yes" Icon="AppIcon" />
+          </File>
         </Component>
       </Directory>
     </StandardDirectory>
 
-    <StandardDirectory Id="ProgramMenuFolder">
-      <Component Id="StartMenuShortcut">
-        <Shortcut Id="ClaudeStatusShortcut" Name="Claude Status" Description="Claude usage on the taskbar"
-                  Target="[INSTALLFOLDER]ClaudeStatus.exe" WorkingDirectory="INSTALLFOLDER" />
-        <RegistryValue Root="HKLM" Key="Software\ClaudeStatus" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
-      </Component>
-    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
 
     <StandardDirectory Id="ProgramFiles64Folder">
       <Component Id="AutoStartAllUsers" Condition="AUTOSTART = 1" Guid="6f1d2a4e-0f5b-4a37-9a0e-2b8d4c7f1e93">
@@ -39,7 +39,6 @@
 
     <Feature Id="Main" Title="Claude Status">
       <ComponentRef Id="MainExecutable" />
-      <ComponentRef Id="StartMenuShortcut" />
       <ComponentRef Id="AutoStartAllUsers" />
     </Feature>
   </Package>
