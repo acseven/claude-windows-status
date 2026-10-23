@@ -10,8 +10,9 @@ nor an API key.
 
 ## What it looks like
 
-The images below are rendered previews of the design. Real screenshots from hosted Windows
-machines are produced by CI on every push (see [Verification](#verification)).
+Real screenshots from the CI smoke test, captured on hosted Windows Server 2025 (Windows 11
+shell) and Windows Server 2022 (Windows 10 shell) at 1920×1080 with demo data. The "Test Mode"
+watermark comes from the CI host.
 
 ### Windows 11
 
@@ -23,17 +24,13 @@ Compact, one line:
 
 ![Windows 11 – compact](docs/images/win11-compact.png)
 
-Tray icons only. The filled tile is the 5h session; the outlined tile is the 7d limit:
+Not signed in yet:
 
-![Windows 11 – tray icons](docs/images/win11-icons.png)
+![Windows 11 – signed out](docs/images/win11-signed-out.png)
 
 Details flyout (click the widget or a tray icon):
 
 ![Windows 11 – details](docs/images/win11-flyout.png)
-
-Limit notification:
-
-![Windows 11 – notification](docs/images/win11-notification.png)
 
 ### Windows 10
 
@@ -41,14 +38,27 @@ Limit notification:
 
 ![Windows 10 – compact](docs/images/win10-compact.png)
 
-![Windows 10 – tray icons](docs/images/win10-icons.png)
+![Windows 10 – signed out](docs/images/win10-signed-out.png)
 
 ![Windows 10 – details](docs/images/win10-flyout.png)
+
+### Tray icons and notifications (rendered previews)
+
+Hosted CI machines keep new tray icons in the overflow area and suppress notifications, so these
+two are previews of the design rather than screenshots. The filled tile is the 5h session and the
+outlined tile is the 7d limit:
+
+![Tray icons](docs/images/win11-icons.png)
+
+![Limit notification](docs/images/win11-notification.png)
 
 ## Features
 
 - **Taskbar widget** next to the notification area, in one of three styles: two rows with bars,
-  one compact line, or tray icons only. Drag it sideways to move it. It hides when the taskbar
+  one compact line, or tray icons only. It **never covers taskbar icons**: it appears only when it
+  fits in the free space between the last taskbar button and the tray, and otherwise stays hidden
+  (the tray icons remain). It is also hidden on vertical taskbars. You can drag it sideways within
+  that free space. It hides when the taskbar
   auto-hides or a full-screen app is in front, and follows the light/dark Windows mode.
 - **Two tray icons**, one for 5h and one for 7d. Each shows the percentage and is coloured by
   level: normal, amber from 70%, red from 90%.
@@ -183,7 +193,8 @@ Command-line switches, useful for testing:
   `/api/organizations/{id}/usage` with the signed-in session. Every object in the response that
   has a `utilization` field becomes a limit row, so new limit types appear without code changes.
 - `TaskbarWidget` is a borderless, always-on-top, non-activating window placed over the taskbar
-  next to the notification area. Windows 11 removed deskbands, so this is how taskbar widgets
+  next to the notification area. `TaskbarLayout` reads the taskbar buttons' positions through UI
+  Automation every few seconds, and the widget shows only when it fits in the free gap. Windows 11 removed deskbands, so this is how taskbar widgets
   work today.
 - `TrayController` draws the two tray icons and owns the menu; `Notifier` sends the threshold
   notifications through the notification area, which Windows shows as native toasts.
