@@ -9,7 +9,7 @@
     <!-- Version = MSI ProductVersion (YY.M.n, major must be <= 255); DisplayVersion = YYYY.M.n. -->
     <Version Condition="'$(Version)' == ''">26.1.0</Version>
     <DisplayVersion Condition="'$(DisplayVersion)' == ''">$(Version)</DisplayVersion>
-    <OutputName>ClaudeStatus-$(DisplayVersion)-$(Platform)</OutputName>
+    <OutputName>ClaudeStatus-$(DisplayVersion)-$(Platform)-setup</OutputName>
     <PublishDir Condition="'$(PublishDir)' == ''">../publish/win-$(Platform)</PublishDir>
     <DefineConstants>Version=$(Version);DisplayVersion=$(DisplayVersion);PublishDir=$(PublishDir)</DefineConstants>
     <SuppressValidation>false</SuppressValidation>

@@ -18,7 +18,7 @@
                            CloseMessage="yes" RebootPrompt="no" TerminateProcess="0" Timeout="5" />
 
     <!-- AUTOSTART=0 leaves out the all-users autostart feature in silent/GPO installs
-         (msiexec /i ClaudeStatus-<version>-x64.msi AUTOSTART=0 /qn, or a transform for GPO). -->
+         (msiexec /i ClaudeStatus-<version>-x64-setup.msi AUTOSTART=0 /qn, or a transform for GPO). -->
     <Property Id="AUTOSTART" Value="1" />
 
     <!-- Icons come from the small .ico, not the exe: an Icon entry embeds its whole source file.

@@ -81,6 +81,22 @@ Start-Process -FilePath $Exe -ArgumentList '--quit' -Wait
 if (-not $p.WaitForExit(10000)) { throw '--quit did not close the running copy' }
 Write-Host '--quit OK'
 
+# A different copy (another file/version) takes over from the running one.
+Write-Host "== takeover by a different copy"
+$otherDir = Join-Path $env:TEMP 'claudestatus-other'
+New-Item -ItemType Directory -Force $otherDir | Out-Null
+$other = Join-Path $otherDir 'ClaudeStatus.exe'
+Copy-Item $Exe $other -Force
+$old = Start-Process -FilePath $other -ArgumentList '--demo' -PassThru
+Start-Sleep -Seconds 6
+$new = Start-Process -FilePath $Exe -ArgumentList '--demo' -PassThru
+if (-not $old.WaitForExit(20000)) { throw 'the running copy was not replaced' }
+Start-Sleep -Seconds 4
+if ($new.HasExited) { throw "the new copy exited instead of taking over (code $($new.ExitCode))" }
+Stop-Process -Id $new.Id -Force
+Start-Sleep -Seconds 2
+Write-Host 'takeover OK'
+
 if ($Msi) {
     # Installer wizard: open it, capture the first page, cancel.
     Write-Host "== installer wizard"

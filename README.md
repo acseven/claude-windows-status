@@ -90,8 +90,9 @@ outlined tile is the 7d limit:
 
 ## Install (single PC)
 
-Download `ClaudeStatus-<version>-x64.msi` (or `-ARM64.msi`) from the Releases page and run it,
-or use the portable `ClaudeStatus-<version>-win-x64.exe`.
+Download `ClaudeStatus-<version>-x64-setup.msi` (or `-ARM64-setup.msi`) from the Releases page and run it,
+or use the portable `ClaudeStatus-<version>-win-x64-portable.exe` (the app itself, no installation). Starting a
+new version while an older one runs replaces the running copy.
 
 The installer wizard shows the licence, lets you choose the install folder and whether Claude
 Status starts automatically for all users, shows progress, and can start the app when it
@@ -105,7 +106,7 @@ Other system tray icons** and turn on both *Claude Status* entries.
 
 ### 1. Software installation
 
-1. Copy `ClaudeStatus-<version>-x64.msi` to a share that the computer accounts can read, for example
+1. Copy `ClaudeStatus-<version>-x64-setup.msi` to a share that the computer accounts can read, for example
    `\\fileserver\deploy$\ClaudeStatus\`.
 2. In **Group Policy Management**, edit a GPO linked to the target computers' OU:
    **Computer Configuration → Policies → Software Settings → Software installation →
@@ -115,7 +116,7 @@ Other system tray icons** and turn on both *Claude Status* entries.
    menu shortcut, and starts automatically for every user at sign-in (an HKLM `Run` entry).
 
 To skip the autostart entry, deploy with `AUTOSTART=0`. Use a transform (`.mst`) for GPO, or
-`msiexec /i ClaudeStatus-<version>-x64.msi AUTOSTART=0 /qn` for Intune, SCCM or scripts.
+`msiexec /i ClaudeStatus-<version>-x64-setup.msi AUTOSTART=0 /qn` for Intune, SCCM or scripts.
 
 Upgrades: add the newer MSI to the same GPO as an upgrade of the existing package. All builds
 share one UpgradeCode, so the new version replaces the old one.
@@ -189,8 +190,8 @@ Releases are never published automatically. When a build is ready, go to **Actio
 Run workflow** and tick **Publish a release**. The workflow picks the next free number for the
 current month, builds and smoke-tests everything, and publishes a GitHub release with:
 
-- `ClaudeStatus-<version>-x64.msi` and `ClaudeStatus-<version>-ARM64.msi`
-- `ClaudeStatus-<version>-win-x64.exe` and `ClaudeStatus-<version>-win-arm64.exe` (portable)
+- `ClaudeStatus-<version>-x64-setup.msi` and `ClaudeStatus-<version>-ARM64-setup.msi`
+- `ClaudeStatus-<version>-win-x64-portable.exe` and `ClaudeStatus-<version>-win-arm64-portable.exe`
 - `ClaudeStatus-<version>-PolicyDefinitions.zip` (ADMX/ADML)
 
 A test build can also be published as a **pre-release**, either by pushing a `vYYYY.M.N` tag or

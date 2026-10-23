@@ -96,7 +96,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory dist | Out-Null
-          Copy-Item publish/${{ matrix.rid }}/ClaudeStatus.exe dist/ClaudeStatus-${{ needs.version.outputs.version }}-${{ matrix.rid }}.exe
+          Copy-Item publish/${{ matrix.rid }}/ClaudeStatus.exe dist/ClaudeStatus-${{ needs.version.outputs.version }}-${{ matrix.rid }}-portable.exe
           Get-ChildItem installer/bin -Recurse -Filter *.msi | Copy-Item -Destination dist/
 
       - uses: actions/upload-artifact@v4
@@ -125,7 +125,7 @@ jobs:
           path: dist
       - name: Run and capture
         shell: pwsh
-        run: ./.github/scripts/smoke.ps1 -Exe (Get-ChildItem dist/ClaudeStatus-*-win-x64.exe).FullName -Msi (Get-ChildItem dist/ClaudeStatus-*-x64.msi).FullName -OutDir screenshots -Prefix ${{ matrix.prefix }}
+        run: ./.github/scripts/smoke.ps1 -Exe (Get-ChildItem dist/ClaudeStatus-*-win-x64-portable.exe).FullName -Msi (Get-ChildItem dist/ClaudeStatus-*-x64-setup.msi).FullName -OutDir screenshots -Prefix ${{ matrix.prefix }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:

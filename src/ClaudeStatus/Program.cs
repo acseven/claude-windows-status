@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 
 namespace ClaudeStatus;
@@ -14,10 +15,27 @@ static class Program
         using var mutex = new Mutex(true, @"Local\ClaudeStatus.SingleInstance", out var first);
         if (!first)
         {
-            // Already running in this session: starting it again (e.g. from the Start menu) shows
-            // the details flyout; --quit asks the running copy to exit.
-            Signal(options.Quit ? QuitSignal : ShowSignal);
-            return;
+            if (options.Quit)
+            {
+                Signal(QuitSignal);
+                return;
+            }
+            if (!RunningCopyDiffers())
+            {
+                // The same copy started again (e.g. from the Start menu): show its details flyout.
+                Signal(ShowSignal);
+                return;
+            }
+            // A different version or location (an upgrade, the portable exe next to the installed
+            // one): the running copy quits and this one takes over.
+            Signal(QuitSignal);
+            try { first = mutex.WaitOne(TimeSpan.FromSeconds(15)); }
+            catch (AbandonedMutexException) { first = true; }
+            if (!first)
+            {
+                Signal(ShowSignal);
+                return;
+            }
         }
         if (options.Quit) return;
 
@@ -43,6 +61,34 @@ static class Program
             listener.Start();
         };
         app.Run();
+    }
+
+    /// <summary>True when the copy already running in this session is another file or version.</summary>
+    static bool RunningCopyDiffers()
+    {
+        var me = Environment.ProcessPath ?? "";
+        var myVersion = FileVersionInfo.GetVersionInfo(me).FileVersion;
+        using var current = Process.GetCurrentProcess();
+        foreach (var p in Process.GetProcesses())
+        {
+            using (p)
+            {
+                try
+                {
+                    if (p.Id == current.Id || p.SessionId != current.SessionId) continue;
+                    var path = p.MainModule?.FileName;
+                    if (path is null) continue;
+                    var info = FileVersionInfo.GetVersionInfo(path);
+                    if (info.ProductName != "Claude Status") continue;
+                    return !string.Equals(path, me, StringComparison.OrdinalIgnoreCase) || info.FileVersion != myVersion;
+                }
+                catch
+                {
+                    // Processes we may not inspect (other users, protected) are not ours.
+                }
+            }
+        }
+        return false;
     }
 
     static void Signal(string name)
