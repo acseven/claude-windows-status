@@ -67,7 +67,18 @@ public sealed class BrowserFetcher : IDisposable
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 timeout.CancelAfter(TimeSpan.FromSeconds(30));
                 using (timeout.Token.Register(() => tcs.TrySetCanceled()))
-                    return await tcs.Task;
+                {
+                    try
+                    {
+                        return await tcs.Task;
+                    }
+                    catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+                    {
+                        // No answer: usually the page navigated away (Cloudflare check). Reload next time.
+                        _reload = true;
+                        throw new HttpRequestException("claude.ai did not answer in time. Will retry.");
+                    }
+                }
             }
             finally
             {
@@ -126,6 +137,17 @@ public sealed class BrowserFetcher : IDisposable
         core.NavigationCompleted += Done;
         core.Navigate(Origin + "/robots.txt");
         await loaded.Task.WaitAsync(TimeSpan.FromSeconds(30));
+
+        // A Cloudflare check page ("Just a moment…") solves itself and reloads; a request started
+        // before that would be lost with the page. Wait until the check is gone (up to 30 s).
+        for (var i = 0; i < 30; i++)
+        {
+            var title = await core.ExecuteScriptAsync("document.title");
+            if (!title.Contains("Just a moment", StringComparison.OrdinalIgnoreCase) &&
+                !title.Contains("Attention Required", StringComparison.OrdinalIgnoreCase))
+                break;
+            await Task.Delay(1000);
+        }
     }
 
     void OnMessage(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
