@@ -54,6 +54,8 @@
 
     <!-- Wizard: Welcome → Licence → Options (features, install folder) → Ready → Progress → Finish. -->
     <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
+    <WixVariable Id="WixUIDialogBmp" Value="dialog.bmp" />
+    <WixVariable Id="WixUIBannerBmp" Value="banner.bmp" />
     <ui:WixUI Id="WixUI_FeatureTree" />
 
     <!-- "Start Claude Status now" on the Finish page. -->
