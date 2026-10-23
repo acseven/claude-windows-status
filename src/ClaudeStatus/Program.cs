@@ -79,18 +79,24 @@ static class Program
         app.Startup += async (_, _) =>
         {
             using var fetcher = new BrowserFetcher();
-            string result;
-            try
+            var log = new System.Text.StringBuilder();
+            for (var attempt = 1; attempt <= 3; attempt++)
             {
-                var (status, body) = await fetcher.GetAsync("/api/organizations", "selftest-invalid", CancellationToken.None);
-                var kind = body.TrimStart().StartsWith('{') || body.TrimStart().StartsWith('[') ? "json" : "html";
-                result = $"status={status} kind={kind} body={body[..Math.Min(body.Length, 200)].ReplaceLineEndings(" ")}";
+                try
+                {
+                    var (status, body) = await fetcher.GetAsync("/api/organizations", "selftest-invalid", CancellationToken.None);
+                    var kind = body.TrimStart().StartsWith('{') || body.TrimStart().StartsWith('[') ? "json" : "html";
+                    log.AppendLine($"attempt {attempt}: status={status} kind={kind} body={body[..Math.Min(body.Length, 200)].ReplaceLineEndings(" ")}");
+                    if (kind == "json") break;
+                    fetcher.RenewClearance();
+                }
+                catch (Exception ex)
+                {
+                    log.AppendLine($"attempt {attempt}: error={ex.GetType().Name}: {ex.Message}");
+                }
+                try { log.AppendLine("  page: " + await fetcher.DescribePageAsync()); } catch { }
             }
-            catch (Exception ex)
-            {
-                result = "error=" + ex.GetType().Name + ": " + ex.Message;
-            }
-            System.IO.File.WriteAllText(file, result);
+            System.IO.File.WriteAllText(file, log.ToString());
             app.Shutdown();
         };
         app.Run();

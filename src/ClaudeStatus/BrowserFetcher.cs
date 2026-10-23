@@ -32,6 +32,13 @@ public sealed class BrowserFetcher : IDisposable
     /// <summary>Cloudflare asked for a check: reload the page (renewing its clearance) before the next request.</summary>
     public void RenewClearance() => _reload = true;
 
+    /// <summary>Title and address of the hidden page (diagnostics).</summary>
+    public async Task<string> DescribePageAsync()
+    {
+        if (_web?.CoreWebView2 is not { } core) return "not started";
+        return $"title={await core.ExecuteScriptAsync("document.title")} url={core.Source}";
+    }
+
     public async Task<(int Status, string Body)> GetAsync(string path, string sessionKey, CancellationToken ct)
     {
         await _gate.WaitAsync(ct);
