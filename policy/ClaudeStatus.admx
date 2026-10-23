@@ -44,5 +44,21 @@
       <enabledValue><decimal value="1" /></enabledValue>
       <disabledValue><decimal value="0" /></disabledValue>
     </policy>
+    <policy name="AllowedEmailDomains" class="Both" displayName="$(string.AllowedEmailDomains)" explainText="$(string.AllowedEmailDomains_Help)"
+            presentation="$(presentation.AllowedEmailDomains)" key="SOFTWARE\Policies\ClaudeStatus">
+      <parentCategory ref="ClaudeStatus" />
+      <supportedOn ref="SUPPORTED_Win10" />
+      <elements>
+        <text id="AllowedEmailDomains" valueName="AllowedEmailDomains" maxLength="2048" />
+      </elements>
+    </policy>
+    <policy name="AllowedOrganizations" class="Both" displayName="$(string.AllowedOrganizations)" explainText="$(string.AllowedOrganizations_Help)"
+            presentation="$(presentation.AllowedOrganizations)" key="SOFTWARE\Policies\ClaudeStatus">
+      <parentCategory ref="ClaudeStatus" />
+      <supportedOn ref="SUPPORTED_Win10" />
+      <elements>
+        <text id="AllowedOrganizations" valueName="AllowedOrganizations" maxLength="4096" />
+      </elements>
+    </policy>
   </policies>
 </policyDefinitions>

@@ -7,13 +7,17 @@ namespace ClaudeStatus;
 
 public sealed record LimitWindow(string Key, string Label, double Percent, DateTimeOffset? ResetsAt);
 
-public sealed record UsageSnapshot(IReadOnlyList<LimitWindow> Windows, string? OrganizationName, DateTimeOffset FetchedAt)
+/// <param name="Scope">Which account and organisation the numbers belong to (keys notification state).</param>
+public sealed record UsageSnapshot(IReadOnlyList<LimitWindow> Windows, string? OrganizationName, string Scope, DateTimeOffset FetchedAt)
 {
     public LimitWindow? Session => Windows.FirstOrDefault(w => w.Key == "five_hour");
     public LimitWindow? Weekly => Windows.FirstOrDefault(w => w.Key == "seven_day");
 }
 
 public sealed class AuthException(string message) : Exception(message);
+
+/// <summary>The account or organisation is not allowed by Group Policy.</summary>
+public sealed class PolicyException(string message) : Exception(message);
 
 /// <summary>
 /// Client for the (undocumented) claude.ai web endpoints that the Settings → Usage page uses.
@@ -37,32 +41,57 @@ public sealed class UsageClient : IDisposable
         _http.DefaultRequestHeaders.Accept.ParseAdd("application/json");
     }
 
-    public sealed record Organization(string Id, string Name);
+    public sealed record Organization(string Id, string Name, string[] Capabilities);
 
-    public async Task<Organization> GetOrganizationAsync(string sessionKey, string? preferredId, CancellationToken ct)
+    public async Task<IReadOnlyList<Organization>> GetOrganizationsAsync(string sessionKey, CancellationToken ct)
     {
         using var doc = await GetJsonAsync("/api/organizations", sessionKey, ct);
-        var orgs = doc.RootElement.EnumerateArray()
-            .Select(o => (
-                Id: o.GetProperty("uuid").GetString()!,
-                Name: o.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "",
-                Caps: o.TryGetProperty("capabilities", out var c) && c.ValueKind == JsonValueKind.Array
+        if (doc.RootElement.ValueKind != JsonValueKind.Array) return [];
+        return doc.RootElement.EnumerateArray()
+            .Where(o => o.TryGetProperty("uuid", out var u) && u.ValueKind == JsonValueKind.String)
+            .Select(o => new Organization(
+                o.GetProperty("uuid").GetString()!,
+                o.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "",
+                o.TryGetProperty("capabilities", out var c) && c.ValueKind == JsonValueKind.Array
                     ? c.EnumerateArray().Select(x => x.GetString() ?? "").ToArray()
                     : []))
             .ToList();
-        if (orgs.Count == 0) throw new AuthException("This account has no organizations.");
-
-        var pick = orgs.FirstOrDefault(o => o.Id == preferredId);
-        if (pick.Id is null) pick = orgs.FirstOrDefault(o => o.Caps.Any(c => c.StartsWith("claude_max") || c.StartsWith("claude_pro")));
-        if (pick.Id is null) pick = orgs.FirstOrDefault(o => o.Caps.Contains("chat"));
-        if (pick.Id is null) pick = orgs[0];
-        return new Organization(pick.Id, pick.Name);
     }
 
-    public async Task<UsageSnapshot> GetUsageAsync(string sessionKey, Organization org, CancellationToken ct)
+    /// <summary>The saved choice if still available, else a paid plan, else a chat-capable one, else the first.</summary>
+    public static Organization Pick(IReadOnlyList<Organization> orgs, string? preferredId) =>
+        orgs.FirstOrDefault(o => o.Id == preferredId)
+        ?? orgs.FirstOrDefault(o => o.Capabilities.Any(c => c.StartsWith("claude_max") || c.StartsWith("claude_pro")))
+        ?? orgs.FirstOrDefault(o => o.Capabilities.Contains("chat"))
+        ?? orgs[0];
+
+    /// <summary>The account's e-mail address (shown locally to tell accounts apart), or null.</summary>
+    public async Task<string?> GetAccountLabelAsync(string sessionKey, CancellationToken ct)
     {
-        using var doc = await GetJsonAsync($"/api/organizations/{org.Id}/usage", sessionKey, ct);
-        return new UsageSnapshot(ParseWindows(doc.RootElement), org.Name, DateTimeOffset.Now);
+        try
+        {
+            using var doc = await GetJsonAsync("/api/account", sessionKey, ct);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object) return null;
+            foreach (var name in new[] { "email_address", "email" })
+                if (doc.RootElement.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(v.GetString()))
+                    return v.GetString();
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        {
+            // Endpoint not available: fall back to the organisation name. Transient failures (network,
+            // 429, Cloudflare, 5xx) propagate, so they are retried instead of being read as "no e-mail"
+            // (which a domain policy would treat as a refused account and delete).
+        }
+        catch (JsonException)
+        {
+        }
+        return null;
+    }
+
+    public async Task<UsageSnapshot> GetUsageAsync(string sessionKey, Organization org, string scope, CancellationToken ct)
+    {
+        using var doc = await GetJsonAsync($"/api/organizations/{Uri.EscapeDataString(org.Id)}/usage", sessionKey, ct);
+        return new UsageSnapshot(ParseWindows(doc.RootElement), org.Name, scope, DateTimeOffset.Now);
     }
 
     /// <summary>

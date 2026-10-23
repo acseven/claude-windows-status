@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
@@ -14,7 +13,7 @@ public sealed class DetailsWindow : Window
     readonly StackPanel _body = new();
     bool _closing;
 
-    public DetailsWindow(UsageMonitor monitor, Point anchor, Action signIn)
+    public DetailsWindow(UsageMonitor monitor, Point anchor, Action<Point> showMenu, Action quit)
     {
         _monitor = monitor;
         _anchor = anchor;
@@ -34,16 +33,25 @@ public sealed class DetailsWindow : Window
         Foreground = new SolidColorBrush(fg);
         Title = "Claude usage";
 
-        var refresh = new Button { Content = "Refresh", Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(0, 0, 6, 0) };
-        refresh.Click += async (_, _) => await _monitor.RefreshAsync();
-        var open = new Button { Content = "Open usage page", Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(0, 0, 6, 0) };
-        open.Click += (_, _) => Process.Start(new ProcessStartInfo("https://claude.ai/settings/usage") { UseShellExecute = true });
-        var login = new Button { Content = "Sign in…", Padding = new Thickness(10, 3, 10, 3) };
-        login.Click += (_, _) => { Close(); signIn(); };
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0) };
-        buttons.Children.Add(refresh);
-        buttons.Children.Add(open);
-        buttons.Children.Add(login);
+        Button Make(string text, RoutedEventHandler click)
+        {
+            var b = new Button { Content = text, Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(0, 0, 6, 0) };
+            b.Click += click;
+            return b;
+        }
+        var buttons = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
+        buttons.Children.Add(Make("Refresh", async (_, _) => await _monitor.RefreshAsync()));
+        buttons.Children.Add(Make("Usage page", (_, _) => TrayController.OpenUsagePage()));
+        Button? account = null;
+        account = Make("Account ▾", (_, _) =>
+        {
+            // Opens the full app menu (accounts, organisation, settings) under the button.
+            var p = account!.PointToScreen(new Point(0, account.ActualHeight));
+            Close();
+            showMenu(p);
+        });
+        buttons.Children.Add(account);
+        buttons.Children.Add(Make("Quit", (_, _) => { Close(); quit(); }));
 
         var outer = new StackPanel();
         outer.Children.Add(_body);
@@ -62,6 +70,8 @@ public sealed class DetailsWindow : Window
 
         _monitor.Changed += Render;
         Closed += (_, _) => _monitor.Changed -= Render;
+        // Close() from a button deactivates the window while it is closing; don't close it twice.
+        Closing += (_, _) => _closing = true;
         Deactivated += (_, _) => { if (!_closing) { _closing = true; Close(); } };
         Loaded += (_, _) => PlaceNearAnchor();
         Render();
@@ -74,11 +84,13 @@ public sealed class DetailsWindow : Window
 
         _body.Children.Add(new TextBlock
         {
-            Text = "Claude usage" + (string.IsNullOrEmpty(snap?.OrganizationName) ? "" : " · " + snap!.OrganizationName),
+            Text = "Claude usage" + (string.IsNullOrEmpty(_monitor.AccountLabel) ? "" : " · " + _monitor.AccountLabel),
             FontSize = 14,
             FontWeight = FontWeights.SemiBold,
             Margin = new Thickness(0, 0, 0, 10),
         });
+        if (!string.IsNullOrEmpty(snap?.OrganizationName) && snap!.OrganizationName != _monitor.AccountLabel)
+            _body.Children.Add(new TextBlock { Text = "Organization: " + snap.OrganizationName, FontSize = 11, Opacity = 0.7, Margin = new Thickness(0, -6, 0, 8) });
 
         if (snap is null)
         {

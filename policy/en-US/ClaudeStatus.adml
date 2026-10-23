@@ -18,6 +18,10 @@
       <string id="Style_IconOnly">Tray icon only</string>
       <string id="DisableNotifications">Turn off limit notifications</string>
       <string id="DisableNotifications_Help">Enabled: no Windows notifications when limits reach 70/90/100%. Disabled: notifications are always on. Not configured: users decide.</string>
+      <string id="AllowedEmailDomains">Allowed account e-mail domains</string>
+      <string id="AllowedEmailDomains_Help">Only Claude accounts whose e-mail address ends in one of these domains can be used, for example: example.com; example.org. Other accounts are refused and their stored session is deleted. If the e-mail address cannot be read, the account is refused. Not configured: any account.</string>
+      <string id="AllowedOrganizations">Allowed Claude organizations</string>
+      <string id="AllowedOrganizations_Help">Only these Claude organization IDs (UUIDs, separated by ";") can be tracked. Accounts with none of them are refused and their stored session is deleted. Not configured: any organization.</string>
     </stringTable>
     <presentationTable>
       <presentation id="RefreshMinutes">
@@ -25,6 +29,12 @@
       </presentation>
       <presentation id="WidgetStyle">
         <dropdownList refId="WidgetStyle" defaultItem="0">Display:</dropdownList>
+      </presentation>
+      <presentation id="AllowedEmailDomains">
+        <textBox refId="AllowedEmailDomains"><label>Domains (separated by ;):</label></textBox>
+      </presentation>
+      <presentation id="AllowedOrganizations">
+        <textBox refId="AllowedOrganizations"><label>Organization IDs (separated by ;):</label></textBox>
       </presentation>
     </presentationTable>
   </resources>

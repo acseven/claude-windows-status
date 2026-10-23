@@ -73,6 +73,14 @@ Invoke-Run 'compact'      @('--demo', '--style=compact')                  160
 Invoke-Run 'flyout'       @('--demo', '--style=bars', '--open-details')   480
 Invoke-Run 'notification' @('--demo=alert', '--style=bars')               480 12
 Invoke-Run 'signed-out'   @('--style=bars')                               160
+# --quit closes a running copy (single-instance signal).
+Write-Host "== --quit"
+$p = Start-Process -FilePath $Exe -ArgumentList '--demo' -PassThru
+Start-Sleep -Seconds 6
+Start-Process -FilePath $Exe -ArgumentList '--quit' -Wait
+if (-not $p.WaitForExit(10000)) { throw '--quit did not close the running copy' }
+Write-Host '--quit OK'
+
 if ($Msi) {
     # Installer wizard: open it, capture the first page, cancel.
     Write-Host "== installer wizard"
@@ -83,11 +91,16 @@ if ($Msi) {
     Get-Process msiexec -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 5
 
-    # Silent install / uninstall, as GPO or Intune would do it.
-    Write-Host "== silent install"
+    # Silent install / uninstall, as GPO or Intune would do it, with a copy running: the installer
+    # must close it (CloseApplication) instead of failing or leaving it running.
+    Write-Host "== silent install over a running copy"
+    $running = Start-Process -FilePath $Exe -ArgumentList '--demo' -PassThru
+    Start-Sleep -Seconds 6
     $log = Join-Path $OutDir "$Prefix-install.log"
     $p = Start-Process msiexec.exe -ArgumentList @('/i', "`"$Msi`"", '/qn', '/l*v', "`"$log`"") -Wait -PassThru
     if ($p.ExitCode -ne 0) { throw "silent install failed: $($p.ExitCode)" }
+    if (-not $running.WaitForExit(15000)) { throw 'installer did not close the running copy' }
+    Write-Host "running copy closed by the installer (exit code $($running.ExitCode))"
     $exe = Join-Path $env:ProgramFiles 'Claude Status\ClaudeStatus.exe'
     if (-not (Test-Path $exe)) { throw "not installed: $exe" }
     $run = Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Run' -Name ClaudeStatus -ErrorAction SilentlyContinue

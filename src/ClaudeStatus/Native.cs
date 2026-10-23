@@ -59,6 +59,7 @@ static class Native
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")] public static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int index, IntPtr value);
     [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr hWnd);
     [DllImport("user32.dll")] public static extern bool DestroyIcon(IntPtr hIcon);
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
 
     public static IntPtr ShellTrayWindow() => FindWindow("Shell_TrayWnd", null);
 

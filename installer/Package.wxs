@@ -1,5 +1,6 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
-     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
   <!-- UpgradeCode must never change: it lets new versions replace old ones (and GPO upgrades work). -->
   <Package Name="Claude Status"
            Manufacturer="Claude Status contributors"
@@ -10,6 +11,11 @@
     <SummaryInformation Description="Claude Status $(var.DisplayVersion) – Claude plan usage on the Windows taskbar" />
     <MajorUpgrade DowngradeErrorMessage="A newer version of Claude Status is already installed." />
     <MediaTemplate EmbedCab="yes" />
+
+    <!-- Close running copies before install, upgrade, repair or uninstall: ask politely (WM_CLOSE,
+         the app exits cleanly and removes its tray icons), then end the process after 5 seconds. -->
+    <util:CloseApplication Id="CloseClaudeStatus" Target="ClaudeStatus.exe"
+                           CloseMessage="yes" RebootPrompt="no" TerminateProcess="0" Timeout="5" />
 
     <!-- AUTOSTART=0 leaves out the all-users autostart feature in silent/GPO installs
          (msiexec /i ClaudeStatus-<version>-x64.msi AUTOSTART=0 /qn, or a transform for GPO). -->

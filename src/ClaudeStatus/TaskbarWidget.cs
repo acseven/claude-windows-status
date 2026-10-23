@@ -16,7 +16,7 @@ public sealed class TaskbarWidget : Window
 {
     readonly Settings _settings;
     readonly UsageMonitor _monitor;
-    readonly Func<System.Windows.Forms.ContextMenuStrip> _menu;
+    readonly Action<Point> _showMenu;
     readonly Action<Point?> _showDetails;
     readonly DispatcherTimer _placeTimer = new() { Interval = TimeSpan.FromSeconds(1) };
 
@@ -40,11 +40,11 @@ public sealed class TaskbarWidget : Window
     bool _pressed, _dragging;
 
     public TaskbarWidget(Settings settings, UsageMonitor monitor,
-        Func<System.Windows.Forms.ContextMenuStrip> menu, Action<Point?> showDetails)
+        Action<Point> showMenu, Action<Point?> showDetails)
     {
         _settings = settings;
         _monitor = monitor;
-        _menu = menu;
+        _showMenu = showMenu;
         _showDetails = showDetails;
 
         WindowStyle = WindowStyle.None;
@@ -80,7 +80,8 @@ public sealed class TaskbarWidget : Window
         MouseLeftButtonUp += OnUp;
         MouseRightButtonUp += (_, e) =>
         {
-            _menu().Show(System.Windows.Forms.Cursor.Position);
+            var c = System.Windows.Forms.Cursor.Position;
+            _showMenu(new Point(c.X, c.Y));
             e.Handled = true;
         };
 

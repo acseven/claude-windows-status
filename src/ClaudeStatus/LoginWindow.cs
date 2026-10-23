@@ -20,12 +20,8 @@ public sealed class LoginWindow : Window
 
     public string? SessionKey { get; private set; }
 
-    readonly bool _otherAccount;
-
-    /// <param name="otherAccount">Start from a clean browser profile, so no account is pre-selected.</param>
-    public LoginWindow(bool otherAccount = false)
+    public LoginWindow()
     {
-        _otherAccount = otherAccount;
         Title = "Sign in to Claude";
         Width = 480;
         Height = 720;
@@ -48,11 +44,10 @@ public sealed class LoginWindow : Window
                 return;
             }
 
-            if (_otherAccount)
-                await _web.CoreWebView2.Profile.ClearBrowsingDataAsync(); // forget remembered identity-provider sessions too
-            else
-                // Forget a previous (probably expired) session so we only capture a fresh one.
-                _web.CoreWebView2.CookieManager.DeleteCookies("sessionKey", "https://claude.ai");
+            // Always start clean: no previously captured session, and no identity-provider session that
+            // could silently sign in a different account than the one the user picks. Windows SSO still
+            // offers the accounts Windows knows about.
+            await _web.CoreWebView2.Profile.ClearBrowsingDataAsync();
             _web.CoreWebView2.Navigate("https://claude.ai/login");
             _poll.Tick += async (_, _) => await CheckCookieAsync();
             _poll.Start();
@@ -69,6 +64,9 @@ public sealed class LoginWindow : Window
 
         _poll.Stop();
         SessionKey = c.Value;
+        // The only stored copy is the DPAPI one in settings.json, so signing out (or a policy refusal)
+        // really deletes the session.
+        _web.CoreWebView2.CookieManager.DeleteCookies("sessionKey", "https://claude.ai");
         DialogResult = true;
     }
 }

@@ -14,7 +14,7 @@ public sealed class TrayController : IDisposable
 {
     readonly Settings _settings;
     readonly UsageMonitor _monitor;
-    readonly Action<bool> _signIn; // true = with a different account
+    readonly Action _signIn;
     readonly Action<System.Windows.Point?> _showDetails;
     readonly Action _exit;
 
@@ -25,12 +25,14 @@ public sealed class TrayController : IDisposable
     readonly WinForms.ToolStripMenuItem _interval = new("Refresh every");
     readonly WinForms.ToolStripMenuItem _notify = new("Notifications");
     readonly WinForms.ToolStripMenuItem _autostart = new("Start with Windows");
-    readonly WinForms.ToolStripMenuItem _signOut = new("Sign out");
+    readonly WinForms.ToolStripMenuItem _account = new("Account");
+    readonly WinForms.ToolStripMenuItem _organization = new("Organization");
+    readonly WinForms.ToolStripMenuItem _signInTop = new("Sign in…");
     readonly Dictionary<WinForms.NotifyIcon, IntPtr> _handles = new();
 
     public WinForms.ContextMenuStrip Menu { get; } = new();
 
-    public TrayController(Settings settings, UsageMonitor monitor, Action<bool> signIn,
+    public TrayController(Settings settings, UsageMonitor monitor, Action signIn,
         Action<System.Windows.Point?> showDetails, Action resetPosition, Action exit)
     {
         _settings = settings;
@@ -57,7 +59,7 @@ public sealed class TrayController : IDisposable
 
         _notify.Click += (_, _) => { _settings.NotificationsEnabled = !_settings.NotificationsEnabled; _settings.Save(); SyncMenu(); };
         _autostart.Click += (_, _) => { AutoStart.SetUser(!AutoStart.IsUserEnabled()); SyncMenu(); };
-        _signOut.Click += (_, _) => _monitor.SetSessionKey(null);
+        _signInTop.Click += (_, _) => _signIn();
 
         Menu.Items.Add(_header);
         Menu.Items.Add(new WinForms.ToolStripSeparator());
@@ -70,11 +72,11 @@ public sealed class TrayController : IDisposable
         Menu.Items.Add(_notify);
         Menu.Items.Add(_autostart);
         Menu.Items.Add(new WinForms.ToolStripSeparator());
-        Menu.Items.Add("Sign in…", null, (_, _) => _signIn(false));
-        Menu.Items.Add("Sign in with a different account…", null, (_, _) => _signIn(true));
-        Menu.Items.Add(_signOut);
+        Menu.Items.Add(_signInTop);
+        Menu.Items.Add(_account);
+        Menu.Items.Add(_organization);
         Menu.Items.Add(new WinForms.ToolStripSeparator());
-        Menu.Items.Add("Exit", null, (_, _) => _exit());
+        Menu.Items.Add("Quit Claude Status", null, (_, _) => _exit());
         Menu.Opening += (_, _) => SyncMenu();
 
         foreach (var icon in new[] { _icon, _weeklyIcon })
@@ -83,7 +85,7 @@ public sealed class TrayController : IDisposable
             icon.MouseClick += (_, e) =>
             {
                 if (e.Button != WinForms.MouseButtons.Left) return;
-                if (_monitor.State == MonitorState.SignedOut) _signIn(false);
+                if (_monitor.State == MonitorState.SignedOut) _signIn();
                 else _showDetails(null);
             };
         }
@@ -119,7 +121,55 @@ public sealed class TrayController : IDisposable
         _autostart.Enabled = !machine;
         _autostart.Text = machine ? "Start with Windows (set by administrator)" : "Start with Windows";
 
-        _signOut.Enabled = _monitor.State != MonitorState.SignedOut;
+        SyncAccounts();
+    }
+
+    /// <summary>Account ▸ (saved accounts, add, sign in again, sign out) and Organization ▸ (when several).</summary>
+    void SyncAccounts()
+    {
+        var accounts = _settings.Accounts;
+        _signInTop.Visible = accounts.Count == 0;
+        _account.Visible = accounts.Count > 0;
+        _account.DropDownItems.Clear();
+        for (var i = 0; i < accounts.Count; i++)
+        {
+            // By reference: the list can change while the menu is open (merge, policy refusal).
+            var target = accounts[i];
+            var item = new WinForms.ToolStripMenuItem(target.Label) { Checked = i == _settings.ActiveAccount };
+            item.Click += (_, _) => _monitor.SwitchTo(target);
+            _account.DropDownItems.Add(item);
+        }
+        _account.DropDownItems.Add(new WinForms.ToolStripSeparator());
+        _account.DropDownItems.Add("Add another account…", null, (_, _) => _signIn());
+        if (_settings.Active is { } active)
+        {
+            if (_monitor.State == MonitorState.SignedOut)
+                _account.DropDownItems.Add("Sign in again…", null, (_, _) => _signIn());
+            _account.DropDownItems.Add($"Sign out of {active.Label}", null, (_, _) => _monitor.SignOutActive());
+        }
+        _account.Text = _settings.Active is { } a ? $"Account: {a.Label}" : "Account";
+
+        var orgs = _monitor.Organizations;
+        _organization.Visible = orgs.Count > 1;
+        _organization.DropDownItems.Clear();
+        foreach (var org in orgs)
+        {
+            var id = org.Id;
+            var item = new WinForms.ToolStripMenuItem(string.IsNullOrEmpty(org.Name) ? id : org.Name)
+            {
+                Checked = id == _settings.Active?.OrganizationId,
+            };
+            item.Click += (_, _) => _monitor.SetOrganization(id);
+            _organization.DropDownItems.Add(item);
+        }
+    }
+
+    /// <summary>Shows the app menu at a screen point (widget right-click, flyout button).</summary>
+    public void ShowMenuAt(System.Windows.Point screen)
+    {
+        Menu.Show(new Point((int)screen.X, (int)screen.Y));
+        // Without the foreground, the menu would not close when clicking elsewhere.
+        Native.SetForegroundWindow(Menu.Handle);
     }
 
     void Render()

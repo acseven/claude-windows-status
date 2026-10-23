@@ -71,6 +71,14 @@ outlined tile is the 7d limit:
   | 5-hour       | 90%, 100%          |
   | 7-day        | 70%, 90%, 100%     |
 
+- **Several Claude accounts**: the **Account** menu lists the saved accounts (by e-mail) and switches
+  between them, adds another, signs in again or signs out. If an account belongs to several Claude
+  organisations (for example personal and Team/Enterprise), **Organization** picks which one is
+  tracked. Accounts are kept strictly apart: results that arrive after a switch are discarded, and
+  notification state is per account and organisation.
+- **Always reachable**: right-click the widget or a tray icon for the menu, or start Claude Status
+  again from the Start menu to open the details flyout of the running copy. The flyout has
+  **Account ▾** and **Quit** buttons; `ClaudeStatus.exe --quit` closes it from a script.
 - **Sign in once** in a built-in Microsoft Edge (WebView2) window, the same way as on claude.ai.
   Windows single sign-on is on: if your organisation signs in to Claude with Microsoft (Entra ID)
   SSO, the Microsoft account picker offers the account you are signed in to Windows with, plus
@@ -102,7 +110,8 @@ Other system tray icons** and turn on both *Claude Status* entries.
 2. In **Group Policy Management**, edit a GPO linked to the target computers' OU:
    **Computer Configuration → Policies → Software Settings → Software installation →
    New → Package**, pick the UNC path to the MSI, and choose **Assigned**.
-3. The package installs at the next restart. It is per-machine (Program Files), adds a Start
+3. The package installs at the next restart. Installing, upgrading or removing it closes a
+   running Claude Status first. It is per-machine (Program Files), adds a Start
    menu shortcut, and starts automatically for every user at sign-in (an HKLM `Run` entry).
 
 To skip the autostart entry, deploy with `AUTOSTART=0`. Use a transform (`.mst`) for GPO, or
@@ -122,6 +131,12 @@ appear under **Computer/User Configuration → Administrative Templates → Clau
 | Refresh interval              | `RefreshMinutes` (DWORD, 1–60)                       | How often usage is checked               |
 | Taskbar display               | `WidgetStyle` (DWORD: 0 bars, 1 compact, 2 icons)    | Display style                            |
 | Turn off limit notifications  | `DisableNotifications` (DWORD 0/1)                   | Forces notifications off (1) or on (0)   |
+| Allowed account e-mail domains| `AllowedEmailDomains` (REG_SZ, `a.com; b.org`)        | Only accounts in these domains           |
+| Allowed Claude organizations  | `AllowedOrganizations` (REG_SZ, UUIDs separated by `;`) | Only these organisations                |
+
+Accounts refused by the two "Allowed" policies are removed together with their stored session,
+and the user is told why. If the e-mail address cannot be read, the account is refused (fail
+closed).
 
 A configured policy overrides the user's choice and greys out the matching menu item.
 HKLM takes precedence over HKCU.

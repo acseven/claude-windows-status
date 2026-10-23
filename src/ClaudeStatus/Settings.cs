@@ -8,7 +8,21 @@ namespace ClaudeStatus;
 
 public enum WidgetStyle { Bars = 0, Compact = 1, IconOnly = 2 }
 
-/// <summary>Persisted user settings. The session key is stored encrypted with DPAPI (current user).</summary>
+/// <summary>A signed-in Claude account. The session key is stored encrypted with DPAPI (current user).</summary>
+public sealed class SavedAccount
+{
+    /// <summary>Stable local id (notification state is keyed on it, never on the label).</summary>
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public string Label { get; set; } = "";
+    /// <summary>E-mail reported by claude.ai; identifies the account (duplicates are merged on it).</summary>
+    public string? Email { get; set; }
+    public string? ProtectedSessionKey { get; set; }
+    public string? OrganizationId { get; set; }
+
+    [JsonIgnore] public string? SessionKey => Settings.Unprotect(ProtectedSessionKey);
+}
+
+/// <summary>Persisted user settings.</summary>
 public sealed class Settings
 {
     public static string Folder { get; } =
@@ -16,8 +30,13 @@ public sealed class Settings
 
     static string FilePath => Path.Combine(Folder, "settings.json");
 
-    public string? ProtectedSessionKey { get; set; }
-    public string? OrganizationId { get; set; }
+    public List<SavedAccount> Accounts { get; set; } = new();
+    public int ActiveAccount { get; set; }
+
+    // Single-account fields from 2026.10.1/2; moved into Accounts on load.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? ProtectedSessionKey { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] public string? OrganizationId { get; set; }
+
     public int RefreshMinutes { get; set; } = 2;
     public WidgetStyle WidgetStyle { get; set; } = WidgetStyle.Bars;
     public bool NotificationsEnabled { get; set; } = true;
@@ -28,27 +47,71 @@ public sealed class Settings
     /// <summary>Distance in physical pixels from the taskbar's right edge to the widget's right edge; null = next to the tray.</summary>
     public int? WidgetRightOffset { get; set; }
 
-    [JsonIgnore]
-    public string? SessionKey
+    [JsonIgnore] public SavedAccount? Active => ActiveAccount >= 0 && ActiveAccount < Accounts.Count ? Accounts[ActiveAccount] : null;
+    [JsonIgnore] public string? SessionKey => Active?.SessionKey;
+
+    /// <summary>Makes <paramref name="sessionKey"/> the active account, adding it if new.</summary>
+    public SavedAccount AddOrActivate(string sessionKey)
     {
-        get
+        var i = Accounts.FindIndex(a => a.SessionKey == sessionKey);
+        if (i < 0)
         {
-            if (string.IsNullOrEmpty(ProtectedSessionKey)) return null;
-            try
+            Accounts.Add(new SavedAccount { Label = $"Account {Accounts.Count + 1}", ProtectedSessionKey = Protect(sessionKey) });
+            i = Accounts.Count - 1;
+        }
+        ActiveAccount = i;
+        return Accounts[i];
+    }
+
+    /// <summary>
+    /// Records who the active account is. Older entries with the same e-mail (e.g. an expired session
+    /// that was signed in again) are merged into it; entries are never merged on anything but e-mail,
+    /// so two people in the same organisation stay separate.
+    /// </summary>
+    public void SetActiveIdentity(string? email, string fallbackLabel)
+    {
+        if (Active is not { } active) return;
+        active.Email = email;
+        active.Label = email ?? fallbackLabel;
+        if (email is not null)
+        {
+            foreach (var old in Accounts.Where(a => a != active && string.Equals(a.Email, email, StringComparison.OrdinalIgnoreCase)).ToList())
             {
-                var bytes = ProtectedData.Unprotect(Convert.FromBase64String(ProtectedSessionKey), null, DataProtectionScope.CurrentUser);
-                return Encoding.UTF8.GetString(bytes);
-            }
-            catch
-            {
-                return null;
+                active.OrganizationId ??= old.OrganizationId;
+                Accounts.Remove(old);
             }
         }
-        set
+        ActiveAccount = Accounts.IndexOf(active);
+    }
+
+    public void Remove(SavedAccount account)
+    {
+        var active = Active;
+        Accounts.Remove(account);
+        ActiveAccount = active is not null && active != account ? Accounts.IndexOf(active) : 0;
+    }
+
+    /// <summary>Removes saved accounts (other than <paramref name="keep"/>) whose e-mail policy refuses.</summary>
+    public int RemoveDisallowed(Policy policy, SavedAccount? keep)
+    {
+        var refused = Accounts.Where(a => a != keep && !policy.AllowsEmail(a.Email)).ToList();
+        foreach (var a in refused) Remove(a);
+        return refused.Count;
+    }
+
+    internal static string Protect(string value) =>
+        Convert.ToBase64String(ProtectedData.Protect(Encoding.UTF8.GetBytes(value), null, DataProtectionScope.CurrentUser));
+
+    internal static string? Unprotect(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return null;
+        try
         {
-            ProtectedSessionKey = string.IsNullOrEmpty(value)
-                ? null
-                : Convert.ToBase64String(ProtectedData.Protect(Encoding.UTF8.GetBytes(value), null, DataProtectionScope.CurrentUser));
+            return Encoding.UTF8.GetString(ProtectedData.Unprotect(Convert.FromBase64String(value), null, DataProtectionScope.CurrentUser));
+        }
+        catch
+        {
+            return null;
         }
     }
 
@@ -64,7 +127,14 @@ public sealed class Settings
         try
         {
             if (File.Exists(FilePath))
-                return JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath), JsonOptions) ?? new Settings();
+            {
+                var s = JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath), JsonOptions) ?? new Settings();
+                if (s.ProtectedSessionKey is { } legacy && s.Accounts.Count == 0)
+                    s.Accounts.Add(new SavedAccount { Label = "Account 1", ProtectedSessionKey = legacy, OrganizationId = s.OrganizationId });
+                s.ProtectedSessionKey = null;
+                s.OrganizationId = null;
+                return s;
+            }
         }
         catch
         {
