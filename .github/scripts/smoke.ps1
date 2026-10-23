@@ -9,6 +9,12 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms, System.Drawing
 New-Item -ItemType Directory -Force $OutDir | Out-Null
 
+# Hide the taskbar search box (0 = hidden) and restart Explorer so the taskbar re-lays out.
+Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Search' -Name SearchboxTaskbarMode -Value 0 -Type DWord -Force
+Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 6
+if (-not (Get-Process explorer -ErrorAction SilentlyContinue)) { Start-Process explorer; Start-Sleep -Seconds 6 }
+
 # Hosted runners start at 1024x768; try a common laptop/desktop resolution (best effort).
 Add-Type -TypeDefinition @'
 using System;
