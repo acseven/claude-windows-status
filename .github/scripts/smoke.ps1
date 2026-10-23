@@ -27,7 +27,7 @@ function Invoke-Run([string] $name, [string[]] $appArgs, [int] $height, [int] $w
     Write-Host "== $name : $($appArgs -join ' ')"
     $p = Start-Process -FilePath $Exe -ArgumentList $appArgs -PassThru
     Start-Sleep -Seconds $wait
-    if ($p.HasExited) { throw "$name: app exited with code $($p.ExitCode)" }
+    if ($p.HasExited) { throw "${name}: app exited with code $($p.ExitCode)" }
     Save-Screen $name $height
     Stop-Process -Id $p.Id -Force
     Start-Sleep -Seconds 2
