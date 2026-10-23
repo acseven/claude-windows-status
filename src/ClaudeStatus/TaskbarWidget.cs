@@ -31,6 +31,7 @@ public sealed class TaskbarWidget : Window
     IntPtr _hwnd;
     bool _visible;
     bool _light;
+    List<(int Left, int Right)> _occupied = new();
     WidgetStyle _style;
     int _tick;
 
@@ -187,9 +188,16 @@ public sealed class TaskbarWidget : Window
 
         if (tb.Edge is Native.Edge.Bottom or Native.Edge.Top)
         {
-            int right = _settings.WidgetRightOffset is int off
-                ? b.Right - off
-                : (tb.Tray?.Left ?? b.Right - (int)(260 * scale)) - (int)(4 * scale);
+            int right;
+            if (_settings.WidgetRightOffset is int off)
+                right = b.Right - off;
+            else
+            {
+                var trayLeft = tb.Tray?.Left ?? b.Right - (int)(260 * scale);
+                // Taskbar buttons move as apps open and close; re-scan every few seconds.
+                if (_tick % 3 == 0) _occupied = TaskbarLayout.OccupiedRanges(b, trayLeft);
+                right = TaskbarLayout.FitRight(trayLeft - (int)(4 * scale), me.Width, b.Left, _occupied, (int)(6 * scale));
+            }
             x = Math.Clamp(right - me.Width, b.Left, Math.Max(b.Left, b.Right - me.Width));
             y = b.Top + (b.Height - me.Height) / 2;
         }

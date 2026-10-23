@@ -60,6 +60,8 @@ static class Native
     [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr hWnd);
     [DllImport("user32.dll")] public static extern bool DestroyIcon(IntPtr hIcon);
 
+    public static IntPtr ShellTrayWindow() => FindWindow("Shell_TrayWnd", null);
+
     public sealed record Taskbar(RECT Bounds, Edge Edge, bool AutoHide, RECT? Tray);
 
     /// <summary>Primary taskbar position and the notification area (tray) inside it, in physical pixels.</summary>
