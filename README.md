@@ -154,6 +154,16 @@ and are never stored at machine level.
   and current Windows 10 builds. If it is missing, deploy the Evergreen WebView2 Runtime first.
 - Outbound HTTPS to `claude.ai`.
 
+## Troubleshooting
+
+- **Nothing seems to happen when I start it**: if Claude Status is already running, starting the
+  same copy again only opens its details flyout (look near the clock). A different version
+  replaces the running copy.
+- **Which file installs it?** The `-setup.msi` file is the installer. The `-portable.exe` file is
+  the app itself and does not install anything.
+- **Quit it** from the menu (right-click the widget or a tray icon), the **Quit** button in the
+  flyout, or `ClaudeStatus.exe --quit`.
+
 ## Where things are stored
 
 | What                     | Where                                              |
