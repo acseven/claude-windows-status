@@ -94,7 +94,12 @@ if ($Msi) {
     # Silent install / uninstall, as GPO or Intune would do it, with a copy running: the installer
     # must close it (CloseApplication) instead of failing or leaving it running.
     Write-Host "== silent install over a running copy"
-    $running = Start-Process -FilePath $Exe -ArgumentList '--demo' -PassThru
+    # Same image name as the installed app (the installer matches running copies by name).
+    $copyDir = Join-Path $env:TEMP 'claudestatus-smoke'
+    New-Item -ItemType Directory -Force $copyDir | Out-Null
+    $copy = Join-Path $copyDir 'ClaudeStatus.exe'
+    Copy-Item $Exe $copy -Force
+    $running = Start-Process -FilePath $copy -ArgumentList '--demo' -PassThru
     Start-Sleep -Seconds 6
     $log = Join-Path $OutDir "$Prefix-install.log"
     $p = Start-Process msiexec.exe -ArgumentList @('/i', "`"$Msi`"", '/qn', '/l*v', "`"$log`"") -Wait -PassThru
