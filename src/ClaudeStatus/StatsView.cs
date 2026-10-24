@@ -60,7 +60,9 @@ public static class StatsView
                 VerticalAlignment = VerticalAlignment.Bottom,
                 Margin = new Thickness(1, 0, 1, 0),
                 CornerRadius = new CornerRadius(2, 2, 0, 0),
-                Background = value is null ? track : new SolidColorBrush(red ? Color.FromRgb(0xE5, 0x48, 0x4D) : Theme.Level(value.Value)),
+                // Day views: red only when the limit was actually hit (as the note says); otherwise at most amber.
+                Background = value is null ? track : new SolidColorBrush(
+                    red ? Color.FromRgb(0xE5, 0x48, 0x4D) : Theme.Level(chart.DayBased ? Math.Min(value.Value, 89) : value.Value)),
                 ToolTip = tip,
             };
             Grid.SetColumn(bar, i);
@@ -146,7 +148,8 @@ public static class StatsView
     }
 
     sealed record Chart(string Title, string Note, DateOnly From, DateOnly To,
-        List<(double? Value, bool Red, string Tip)> Bars, List<string> Axis, List<(string Value, string Label)> Records);
+        List<(double? Value, bool Red, string Tip)> Bars, List<string> Axis, List<(string Value, string Label)> Records,
+        bool DayBased = true);
 
     static (double? Value, bool Red, string Tip) DayBar(HistoryStore.Day? d, DateOnly date) =>
         d is null
@@ -222,7 +225,8 @@ public static class StatsView
                 (hits.ToString(), "session limits hit in 12 months"),
                 (busiest, "busiest month"),
                 (Streak(store, firstMonth, today), "longest streak without a limit"),
-            ]);
+            ],
+            DayBased: false);
     }
 
     /// <summary>Longest run of consecutive recorded days without a session limit hit.</summary>
