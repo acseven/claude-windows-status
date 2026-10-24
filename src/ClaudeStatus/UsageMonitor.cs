@@ -44,7 +44,11 @@ public sealed class UsageMonitor : IDisposable
         ApplyInterval();
     }
 
-    public void ApplyInterval() => _timer.Interval = TimeSpan.FromMinutes(_settings.EffectiveRefreshMinutes);
+    public void ApplyInterval()
+    {
+        var interval = TimeSpan.FromMinutes(_settings.EffectiveRefreshMinutes);
+        if (_timer.Interval != interval) _timer.Interval = interval;
+    }
 
     public void Start()
     {
@@ -125,6 +129,7 @@ public sealed class UsageMonitor : IDisposable
         {
             var policy = Policy.Current;
             if (_settings.RemoveDisallowed(policy, account) > 0) _settings.Save();
+            ApplyInterval(); // picks up a RefreshMinutes policy changed while running
 
             // Re-resolve (and re-check) the identity when it is unknown or no longer allowed, e.g. when a
             // policy is added while the app runs; a refused account is removed below.
@@ -137,11 +142,11 @@ public sealed class UsageMonitor : IDisposable
 
                 var orgs = await _client.GetOrganizationsAsync(key, cts.Token);
                 if (Stale()) return;
+                // No organisations at all is not a policy decision: keep the account (signed out), don't delete it.
+                if (orgs.Count == 0) throw new AuthException("This account has no Claude organizations.");
                 var allowed = orgs.Where(o => policy.AllowsOrganization(o.Id)).ToList();
                 if (allowed.Count == 0)
-                    throw new PolicyException(orgs.Count == 0
-                        ? "This account has no Claude organizations."
-                        : "None of this account's organizations are allowed by your administrator.");
+                    throw new PolicyException("None of this account's organizations are allowed by your administrator.");
 
                 _settings.SetActiveIdentity(email, account.Label);
                 var org = UsageClient.Pick(allowed, account.OrganizationId);

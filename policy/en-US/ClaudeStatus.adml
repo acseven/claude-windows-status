@@ -12,7 +12,7 @@
       <string id="RefreshMinutes">Refresh interval</string>
       <string id="RefreshMinutes_Help">How often, in minutes (1–60), Claude Status checks usage on claude.ai. When set, users cannot change it.</string>
       <string id="WidgetStyle">Taskbar display</string>
-      <string id="WidgetStyle_Help">Bars: two rows (5-hour session and 7-day limit) on the taskbar. Compact: one line. Tray icon only: no taskbar widget. When set, users cannot change it.</string>
+      <string id="WidgetStyle_Help">Bars: taskbar widget shown, two rows (5-hour session and 7-day limit). Compact: taskbar widget shown, one line. Tray icons only: no taskbar widget. When set, users cannot switch the widget or change its layout. The two tray icons stay under the user's control (at least one of widget / tray icons is always shown). The widget only appears where it fits between the taskbar buttons and the notification area.</string>
       <string id="Style_Bars">Bars (two rows)</string>
       <string id="Style_Compact">Compact (one line)</string>
       <string id="Style_IconOnly">Tray icon only</string>
