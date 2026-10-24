@@ -28,9 +28,13 @@ Not signed in yet:
 
 ![Windows 11 – signed out](docs/images/win11-signed-out.png)
 
-Details flyout (click the widget or a tray icon):
+Details flyout (click the widget or a tray icon) with pace marker, trend and forecast:
 
 ![Windows 11 – details](docs/images/win11-flyout.png)
+
+Stats tab (14 days / month / year, heat map, records):
+
+![Windows 11 – stats](docs/images/win11-stats.png)
 
 ### Windows 10
 
@@ -41,6 +45,8 @@ Details flyout (click the widget or a tray icon):
 ![Windows 10 – signed out](docs/images/win10-signed-out.png)
 
 ![Windows 10 – details](docs/images/win10-flyout.png)
+
+![Windows 10 – stats](docs/images/win10-stats.png)
 
 ### Tray icons and notifications (rendered previews)
 
