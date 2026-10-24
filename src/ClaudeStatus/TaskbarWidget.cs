@@ -42,6 +42,7 @@ public sealed class TaskbarWidget : Window
     }
     bool _light;
     List<(int Left, int Right)> _occupied = new();
+    int _noFit; // consecutive checks in which the widget did not fit
     WidgetStyle _style;
     int _tick;
 
@@ -171,9 +172,15 @@ public sealed class TaskbarWidget : Window
 
     (int Left, int Right)? FreeGap(Native.RECT taskbar, int trayLeft, double scale)
     {
-        // Taskbar buttons move as apps open and close; re-scan every few seconds.
-        if (_tick % 3 == 0 || _occupied.Count == 0) _occupied = TaskbarLayout.OccupiedRanges(taskbar, trayLeft);
-        if (_occupied.Count == 0) return null; // there is always a Start button: empty means unknown
+        // Taskbar buttons move as apps open and close; re-scan every few seconds. A scan that finds
+        // nothing (UI Automation busy or failing, e.g. while a refresh runs) keeps the last good layout
+        // instead of hiding the widget; there is always a Start button, so empty means "unknown".
+        if (_tick % 3 == 0 || _occupied.Count == 0)
+        {
+            var scan = TaskbarLayout.OccupiedRanges(taskbar, trayLeft);
+            if (scan.Count > 0) _occupied = scan;
+        }
+        if (_occupied.Count == 0) return null;
         var margin = (int)(8 * scale);
         return (_occupied.Max(o => o.Right) + margin, trayLeft - margin);
     }
@@ -213,9 +220,13 @@ public sealed class TaskbarWidget : Window
             : null;
         if (gap is not { } g || g.Right - g.Left < me.Width)
         {
+            // Only hide after two checks in a row say it does not fit, so one odd reading cannot
+            // make the widget blink off and on.
+            if (_visible && ++_noFit < 2) return;
             if (_visible) { Native.ShowWindow(_hwnd, Native.SW_HIDE); SetShown(false); }
             return;
         }
+        _noFit = 0;
 
         var right = _settings.WidgetRightOffset is int off
             ? Math.Clamp(b.Right - off, g.Left + me.Width, g.Right)
