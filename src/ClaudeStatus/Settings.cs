@@ -149,6 +149,9 @@ public sealed class Settings
                     s.ShowTaskbarWidget = false;
                     s.WidgetStyle = WidgetStyle.Bars;
                 }
+                // At least one of widget / 5h icon / 7d icon stays on (2026.10.6 allowed none).
+                if (!s.EffectiveShowWidget && !s.ShowSessionTrayIcon && !s.ShowWeeklyTrayIcon)
+                    s.ShowSessionTrayIcon = true;
                 if (s.ProtectedSessionKey is { } legacy && s.Accounts.Count == 0)
                     s.Accounts.Add(new SavedAccount { Label = "Account 1", ProtectedSessionKey = legacy, OrganizationId = s.OrganizationId });
                 s.ProtectedSessionKey = null;

@@ -30,6 +30,16 @@ public sealed class TaskbarWidget : Window
 
     IntPtr _hwnd;
     bool _visible;
+
+    /// <summary>Raised when the widget actually appears on or disappears from the taskbar.</summary>
+    public event Action<bool>? ShownChanged;
+
+    void SetShown(bool shown)
+    {
+        if (_visible == shown) return;
+        _visible = shown;
+        ShownChanged?.Invoke(shown);
+    }
     bool _light;
     List<(int Left, int Right)> _occupied = new();
     WidgetStyle _style;
@@ -94,7 +104,7 @@ public sealed class TaskbarWidget : Window
     public void Start()
     {
         Show();
-        _visible = true;
+        SetShown(true);
         Place();
         _placeTimer.Start();
     }
@@ -187,7 +197,7 @@ public sealed class TaskbarWidget : Window
         var shouldShow = _settings.EffectiveShowWidget && tb is not null && !tb.AutoHide && !Native.IsForegroundFullscreen();
         if (!shouldShow)
         {
-            if (_visible) { Native.ShowWindow(_hwnd, Native.SW_HIDE); _visible = false; }
+            if (_visible) { Native.ShowWindow(_hwnd, Native.SW_HIDE); SetShown(false); }
             return;
         }
 
@@ -203,7 +213,7 @@ public sealed class TaskbarWidget : Window
             : null;
         if (gap is not { } g || g.Right - g.Left < me.Width)
         {
-            if (_visible) { Native.ShowWindow(_hwnd, Native.SW_HIDE); _visible = false; }
+            if (_visible) { Native.ShowWindow(_hwnd, Native.SW_HIDE); SetShown(false); }
             return;
         }
 
@@ -215,7 +225,7 @@ public sealed class TaskbarWidget : Window
 
         Native.SetWindowPos(_hwnd, Native.HWND_TOPMOST, x, y, 0, 0,
             Native.SWP_NOSIZE | Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
-        _visible = true;
+        SetShown(true);
     }
 
     void OnDown(object sender, MouseButtonEventArgs e)

@@ -80,6 +80,8 @@ public sealed class TrayController : IDisposable
         Menu.Items.Add("Open usage page", null, (_, _) => OpenUsagePage());
         Menu.Items.Add(new WinForms.ToolStripSeparator());
         Menu.Items.Add(_display);
+        Menu.ShowItemToolTips = true;
+        _display.DropDown.ShowItemToolTips = true;
         Menu.Items.Add(_interval);
         Menu.Items.Add(_notify);
         Menu.Items.Add(_autostart);
@@ -126,30 +128,51 @@ public sealed class TrayController : IDisposable
         icon.ShowBalloonTip(10_000, title, text, WinForms.ToolTipIcon.Warning);
     }
 
+    bool _widgetShown = true; // until the widget reports otherwise (avoids a fallback icon flicker at start)
+
+    /// <summary>How many of the three (widget, 5h icon, 7d icon) are switched on.</summary>
+    int SwitchedOn =>
+        (_settings.EffectiveShowWidget ? 1 : 0) + (_settings.ShowSessionTrayIcon ? 1 : 0) + (_settings.ShowWeeklyTrayIcon ? 1 : 0);
+
     void Toggle(Action change)
     {
         change();
+        if (SwitchedOn == 0) change(); // the last one cannot be switched off (menu also prevents it)
         _settings.Save();
         ApplyIconVisibility();
         SyncMenu();
-        if (!_settings.EffectiveShowWidget && !_settings.ShowSessionTrayIcon && !_settings.ShowWeeklyTrayIcon)
-            Notify("Claude Status is hidden", "Start Claude Status from the Start menu to open it again.");
+    }
+
+    /// <summary>Called by the widget when it appears on or disappears from the taskbar.</summary>
+    public void SetWidgetShown(bool shown)
+    {
+        _widgetShown = shown;
+        ApplyIconVisibility();
     }
 
     void ApplyIconVisibility()
     {
+        // If the widget is the only thing switched on but cannot be shown right now (no free space on
+        // the taskbar, full screen, auto-hide), the 5h icon stands in so the app is always reachable.
+        var fallback = !_settings.ShowSessionTrayIcon && !_settings.ShowWeeklyTrayIcon && !_widgetShown;
         // Added right to left in the tray: 7d first so 5h ends up on its left.
         _weeklyIcon.Visible = _settings.ShowWeeklyTrayIcon;
-        _icon.Visible = _settings.ShowSessionTrayIcon;
+        _icon.Visible = _settings.ShowSessionTrayIcon || fallback || _hideAfterNotify.Enabled;
     }
 
     void SyncMenu()
     {
         var p = Policy.Current;
+        // At least one of the three stays on: the last one switched on is greyed out.
+        var last = SwitchedOn == 1;
         _showWidget.Checked = _settings.EffectiveShowWidget;
-        _showWidget.Enabled = p.WidgetStyle is null;
+        _showWidget.Enabled = p.WidgetStyle is null && !(last && _showWidget.Checked);
         _showSession.Checked = _settings.ShowSessionTrayIcon;
+        _showSession.Enabled = !(last && _showSession.Checked);
         _showWeekly.Checked = _settings.ShowWeeklyTrayIcon;
+        _showWeekly.Enabled = !(last && _showWeekly.Checked);
+        foreach (var item in new[] { _showWidget, _showSession, _showWeekly })
+            item.ToolTipText = item.Checked && !item.Enabled && last ? "At least one must stay on." : null;
         _bars.Checked = _settings.EffectiveStyle == WidgetStyle.Bars;
         _compact.Checked = _settings.EffectiveStyle == WidgetStyle.Compact;
         _bars.Enabled = _compact.Enabled = p.WidgetStyle is null && _settings.EffectiveShowWidget;

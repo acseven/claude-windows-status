@@ -191,6 +191,7 @@ sealed class Shell
         _monitor = new UsageMonitor(_settings);
         _tray = new TrayController(_settings, _monitor, SignIn, ShowDetails, () => _widget!.ResetPosition(), Exit);
         _widget = new TaskbarWidget(_settings, _monitor, _tray.ShowMenuAt, ShowDetails);
+        _widget.ShownChanged += _tray.SetWidgetShown;
         // The installer (and Windows) ask the app to close by sending WM_CLOSE to its windows.
         _widget.Closing += (_, e) =>
         {
