@@ -9,6 +9,10 @@ Any code review, merge (including PR merges) and release (`[release]` commit, `v
 "Publish a release" run) **must** include a GPO check, and its result must be stated in the review,
 PR or release notes. Do not merge or release while it fails.
 
+Items 1 and 5 are automated by the `policy-check` CI job (`.github/scripts/check_policy.py`, run
+locally with `python3 .github/scripts/check_policy.py`); releases do not run unless it passes.
+Items 2–4 and 6 need a human/Claude review.
+
 The check:
 
 1. **Definitions match the code.** Every policy in `policy/ClaudeStatus.admx` has the same value name,

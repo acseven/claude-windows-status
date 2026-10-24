@@ -60,6 +60,13 @@ jobs:
           echo "msi=$((y - 2000)).$m.$n" >> "$GITHUB_OUTPUT"
           echo "Version $y.$m.$n (MSI $((y - 2000)).$m.$n)"
 
+  # Mechanical part of the GPO check required by CLAUDE.md (definitions vs code, valid files).
+  policy-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 .github/scripts/check_policy.py
+
   build:
     needs: version
     runs-on: windows-latest
@@ -159,7 +166,7 @@ jobs:
   # or a pre-release for testing: push a vYYYY.M.N tag, or a commit whose message contains [release].
   release:
     if: needs.version.outputs.release == 'true'
-    needs: [version, build, smoke]
+    needs: [version, policy-check, build, smoke]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

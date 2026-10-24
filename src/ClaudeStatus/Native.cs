@@ -61,6 +61,11 @@ static class Native
     [DllImport("user32.dll")] public static extern bool DestroyIcon(IntPtr hIcon);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
 
+    public delegate void WinEventProc(IntPtr hook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint thread, uint time);
+    public const uint EVENT_SYSTEM_FOREGROUND = 0x0003, WINEVENT_OUTOFCONTEXT = 0;
+    [DllImport("user32.dll")] public static extern IntPtr SetWinEventHook(uint eventMin, uint eventMax, IntPtr hmod, WinEventProc proc, uint processId, uint threadId, uint flags);
+    [DllImport("user32.dll")] public static extern bool UnhookWinEvent(IntPtr hook);
+
     public static IntPtr ShellTrayWindow() => FindWindow("Shell_TrayWnd", null);
 
     public sealed record Taskbar(RECT Bounds, Edge Edge, bool AutoHide, RECT? Tray);

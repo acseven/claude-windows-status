@@ -108,7 +108,29 @@ public sealed class TaskbarWidget : Window
         SetShown(true);
         Place();
         _placeTimer.Start();
+
+        // Clicking the taskbar or a tray icon brings the taskbar to the front, covering the widget
+        // until the next timer tick (a visible flash). Re-raise as soon as the foreground changes,
+        // and once more just after, when the taskbar has finished re-ordering itself.
+        _onForeground = (_, _, _, _, _, _, _) =>
+        {
+            Place();
+            _replace.Stop();
+            _replace.Start();
+        };
+        _replace.Tick += (_, _) => { _replace.Stop(); Place(); };
+        _foregroundHook = Native.SetWinEventHook(Native.EVENT_SYSTEM_FOREGROUND, Native.EVENT_SYSTEM_FOREGROUND,
+            IntPtr.Zero, _onForeground, 0, 0, Native.WINEVENT_OUTOFCONTEXT);
+        Closed += (_, _) =>
+        {
+            if (_foregroundHook != IntPtr.Zero) Native.UnhookWinEvent(_foregroundHook);
+            _replace.Stop();
+        };
     }
+
+    Native.WinEventProc? _onForeground; // kept in a field so the delegate is not collected while hooked
+    IntPtr _foregroundHook;
+    readonly DispatcherTimer _replace = new() { Interval = TimeSpan.FromMilliseconds(150) };
 
     void OnTick()
     {
