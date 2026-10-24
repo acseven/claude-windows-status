@@ -60,12 +60,11 @@ outlined tile is the 7d limit:
 
 ## Features
 
-- **Taskbar widget** next to the notification area, in one of three styles: two rows with bars,
-  one compact line, or tray icons only. It **never covers taskbar icons**: it appears only when it
-  fits in the free space between the last taskbar button and the tray, and otherwise stays hidden
-  (the tray icons remain). It is also hidden on vertical taskbars. You can drag it sideways within
-  that free space. It hides when the taskbar
-  auto-hides or a full-screen app is in front, and follows the light/dark Windows mode.
+- **Taskbar widget** next to the notification area, as two rows with bars or one compact line. It
+  **never covers taskbar icons**: it appears only when it fits in the free space between the last
+  taskbar button and the tray, and otherwise stays hidden. It is also hidden on vertical taskbars,
+  when the taskbar auto-hides or a full-screen app is in front. You can drag it sideways within
+  that free space, and it follows the light/dark Windows mode.
 - **Choose what is shown** under **Display** in the menu: the taskbar widget, the 5-hour tray icon
   and the 7-day tray icon can each be turned on or off, but at least one always stays on (the last
   one is greyed out). If only the widget is on and the taskbar has no room for it, the 5-hour tray
@@ -99,9 +98,9 @@ outlined tile is the 7d limit:
 - **Sign in once** in a built-in Microsoft Edge (WebView2) window, the same way as on claude.ai.
   Windows single sign-on is on: if your organisation signs in to Claude with Microsoft (Entra ID)
   SSO, the Microsoft account picker offers the account you are signed in to Windows with, plus
-  *Use another account*. **Sign in with a different account…** in the menu starts from a clean
-  browser profile.
-  The session is stored for the current Windows user only, encrypted with DPAPI.
+  *Use another account*. Every sign-in (**Sign in…**, **Add another account…**, **Sign in again…**)
+  starts from a clean browser profile, so no other account is signed in by accident. The session
+  is stored for the current Windows user only, encrypted with DPAPI.
 - **No admin rights** needed to run, and **no .NET install** needed: it ships as a
   self-contained executable.
 
@@ -147,7 +146,7 @@ appear under **Computer/User Configuration → Administrative Templates → Clau
 | Policy                        | Registry value (`SOFTWARE\Policies\ClaudeStatus`)  | Effect                                   |
 |-------------------------------|------------------------------------------------------|------------------------------------------|
 | Refresh interval              | `RefreshMinutes` (DWORD, 1–60)                       | How often usage is checked               |
-| Taskbar display               | `WidgetStyle` (DWORD: 0 bars, 1 compact, 2 icons)    | Display style                            |
+| Taskbar display               | `WidgetStyle` (DWORD: 0 bars, 1 compact, 2 icons)    | 0/1: widget on with that layout; 2: no widget. Tray icons stay user-controlled |
 | Turn off limit notifications  | `DisableNotifications` (DWORD 0/1)                   | Forces notifications off (1) or on (0)   |
 | Turn off usage history        | `DisableUsageHistory` (DWORD 0/1)                    | 1: no history, existing history deleted, Stats tab hidden |
 | Allowed account e-mail domains| `AllowedEmailDomains` (REG_SZ, `a.com; b.org`)        | Only accounts in these domains           |
@@ -157,8 +156,10 @@ Accounts refused by the two "Allowed" policies are removed together with their s
 and the user is told why. If the e-mail address cannot be read, the account is refused (fail
 closed).
 
-A configured policy overrides the user's choice and greys out the matching menu item.
-HKLM takes precedence over HKCU.
+A configured policy overrides the user's choice and greys out the matching menu item ("Turn off
+usage history" set to Disabled leaves the choice to the user). HKLM takes precedence over HKCU.
+Changes are picked up within about 30 seconds; account and organisation checks run on the next
+refresh.
 
 ### What each user still does
 
@@ -168,8 +169,9 @@ and are never stored at machine level.
 ### Requirements
 
 - Windows 10 (1809 or later) or Windows 11, x64 or ARM64.
-- Microsoft Edge WebView2 Runtime, used only for the sign-in window. It ships with Windows 11
-  and current Windows 10 builds. If it is missing, deploy the Evergreen WebView2 Runtime first.
+- Microsoft Edge WebView2 Runtime, used for the sign-in window and for the requests to claude.ai
+  (see How it works). It ships with Windows 11 and current Windows 10 builds. If it is missing,
+  deploy the Evergreen WebView2 Runtime first.
 - Outbound HTTPS to `claude.ai`.
 
 ## Troubleshooting
@@ -181,16 +183,21 @@ and are never stored at machine level.
   the app itself and does not install anything.
 - **Quit it** from the menu (right-click the widget or a tray icon), the **Quit** button in the
   flyout, or `ClaudeStatus.exe --quit`.
+- **"claude.ai is asking for a browser check (Cloudflare)"**: the app reloads its hidden page and
+  retries automatically within about 20 seconds.
+- **The widget is not on the taskbar**: there is not enough free space between the taskbar
+  buttons and the tray (or it is switched off under **Display**). The tray icons still work.
 
 ## Where things are stored
 
 | What                     | Where                                              |
 |--------------------------|----------------------------------------------------|
-| Settings, session (DPAPI)| `%LOCALAPPDATA%\ClaudeStatus\settings.json`        |
-| Sign-in browser profile  | `%LOCALAPPDATA%\ClaudeStatus\WebView2\`            |
+| Settings, sessions (DPAPI)| `%LOCALAPPDATA%\ClaudeStatus\settings.json`       |
+| Usage history (numbers only) | `%LOCALAPPDATA%\ClaudeStatus\history\<account id>_<organisation id>.json` |
+| Embedded browser profile | `%LOCALAPPDATA%\ClaudeStatus\WebView2\`            |
 
-**Sign out** in the menu removes the stored session. Uninstalling leaves per-user data in place;
-delete the folder above to remove it.
+**Sign out of …** in the Account menu removes that account's stored session and its history.
+Uninstalling leaves per-user data in place; delete the folder above to remove it.
 
 ## Building
 
@@ -229,10 +236,18 @@ Ordinary pushes build version `YYYY.M.0` and only keep the files as workflow art
 
 ## Verification
 
-The `smoke` job in `.github/workflows/build.yml` runs the built app on hosted **Windows Server
-2022** (Windows 10 shell) and **Windows Server 2025** (Windows 11 shell) desktops. It uses demo
-data (`ClaudeStatus.exe --demo`), checks that the app keeps running, and uploads screenshots of
-the taskbar, the flyout and a notification as build artifacts.
+CI (`.github/workflows/build.yml`) runs on every push and pull request:
+
+- **policy-check**: `.github/scripts/check_policy.py` checks that the ADMX/ADML are valid and match
+  `Policy.cs` (value names, registry types). Releases do not run unless it passes.
+- **build**: self-contained x64/ARM64 executables and MSIs.
+- **smoke**, on hosted **Windows Server 2022** (Windows 10 shell) and **Windows Server 2025**
+  (Windows 11 shell) at 1920×1080: runs the app with demo data and captures the taskbar, the
+  flyout, the Stats tab and a notification; checks `--quit`, takeover by a different copy, the
+  installer wizard, and a silent install/uninstall while a copy is running (the installer must
+  close it); and runs a network self-test through the embedded browser.
+- **screenshots**: publishes the latest captures to the `ci-screenshots` branch (CI-owned, force
+  pushed).
 
 Command-line switches, useful for testing:
 
@@ -240,7 +255,9 @@ Command-line switches, useful for testing:
 |---------------------------------|------------------------------------------------|
 | `--demo` / `--demo=alert`       | Sample data, no sign-in, nothing saved         |
 | `--style=bars\|compact\|icon`   | Display style for this run                     |
-| `--open-details`                | Open the details flyout at start               |
+| `--open-details` / `--open-stats` | Open the details flyout (Now / Stats tab) at start |
+| `--quit`                        | Close the running copy                         |
+| `--selftest-network=FILE`       | One test request through the embedded browser; result in FILE |
 
 ## How it works
 
@@ -256,6 +273,9 @@ Command-line switches, useful for testing:
   work today.
 - `TrayController` draws the two tray icons and owns the menu; `Notifier` sends the threshold
   notifications through the notification area, which Windows shows as native toasts.
+- `HistoryStore` keeps the local history per account and organisation; `Insights` computes pace and
+  forecast; `StatsView` draws the Stats tab.
+- `Policy` reads the Group Policy values; `Settings.Effective*` combine them with the user's choices.
 
 ## Licence
 

@@ -26,14 +26,29 @@ The check:
    properties in `Settings.cs` or `Policy.Current`, never the raw user setting; menu items for
    policy-controlled settings are greyed out.
 4. **Tenancy policies fail closed.** `AllowedEmailDomains` / `AllowedOrganizations`: a refused
-   account is removed with its stored session and the user is told; an unreadable e-mail is refused
-   when domains are set; transient network errors are never treated as a refusal; refusals only come
-   from a configured policy.
+   account is removed with its stored session and its usage history, and the user is told; history
+   of a refused organisation is deleted; an unreadable e-mail is refused when domains are set;
+   transient network errors are never treated as a refusal; refusals only come from a configured
+   policy. `DisableUsageHistory` deletes existing history and stops recording.
 5. **Files are valid.** ADMX/ADML parse as XML, and every `$(string.*)` / `$(presentation.*)`
    reference resolves.
 6. **Changes are reflected.** A new, renamed or changed setting that an administrator could want to
    control is either added to the ADMX/ADML (and README) or the review states why not. Value names
    are never reused with a different meaning.
+
+## Account isolation
+
+Accounts never share data: one request at a time through `BrowserFetcher` with only that account's
+session cookie (deleted afterwards); results for a previous account/refresh are discarded
+(`UsageMonitor` generation check); notification state and history are keyed by account id +
+organisation id, never by label or e-mail. Changes touching these paths need a review of this.
+
+## Development
+
+- WPF cannot be built on Linux. Type-check locally against the WindowsDesktop reference assemblies
+  if needed, but the real build, MSI and Windows smoke tests run in CI (`.github/workflows/build.yml`).
+- New behaviour should be visible in the smoke test where possible (demo data via `--demo`).
+- `ci-screenshots` is a CI-owned branch (force pushed); never commit to it by hand.
 
 ## Other conventions
 
