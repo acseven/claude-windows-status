@@ -30,6 +30,7 @@ public sealed class TrayController : IDisposable
     readonly System.Windows.Forms.Timer _hideAfterNotify = new() { Interval = 15_000 };
     readonly WinForms.ToolStripMenuItem _interval = new("Refresh every");
     readonly WinForms.ToolStripMenuItem _notify = new("Notifications");
+    readonly WinForms.ToolStripMenuItem _history = new("Usage history (Stats)");
     readonly WinForms.ToolStripMenuItem _autostart = new("Start with Windows");
     readonly WinForms.ToolStripMenuItem _account = new("Account");
     readonly WinForms.ToolStripMenuItem _organization = new("Organization");
@@ -70,6 +71,20 @@ public sealed class TrayController : IDisposable
         }
 
         _notify.Click += (_, _) => { _settings.NotificationsEnabled = !_settings.NotificationsEnabled; _settings.Save(); SyncMenu(); };
+        _history.Click += (_, _) =>
+        {
+            if (_settings.HistoryEnabled)
+            {
+                var answer = System.Windows.MessageBox.Show(
+                    "Turn off usage history? The history stored on this PC for all accounts is deleted.",
+                    "Claude Status", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Question);
+                if (answer != System.Windows.MessageBoxResult.Yes) return;
+                HistoryStore.DeleteAll();
+            }
+            _settings.HistoryEnabled = !_settings.HistoryEnabled;
+            _settings.Save();
+            SyncMenu();
+        };
         _autostart.Click += (_, _) => { AutoStart.SetUser(!AutoStart.IsUserEnabled()); SyncMenu(); };
         _signInTop.Click += (_, _) => _signIn();
 
@@ -84,6 +99,7 @@ public sealed class TrayController : IDisposable
         _display.DropDown.ShowItemToolTips = true;
         Menu.Items.Add(_interval);
         Menu.Items.Add(_notify);
+        Menu.Items.Add(_history);
         Menu.Items.Add(_autostart);
         Menu.Items.Add(new WinForms.ToolStripSeparator());
         Menu.Items.Add(_signInTop);
@@ -181,6 +197,9 @@ public sealed class TrayController : IDisposable
         _interval.Enabled = p.RefreshMinutes is null;
         _notify.Checked = _settings.EffectiveNotifications;
         _notify.Enabled = p.DisableNotifications is null;
+        _history.Checked = _settings.EffectiveHistory;
+        _history.Enabled = !p.DisableUsageHistory;
+        _history.Text = p.DisableUsageHistory ? "Usage history (off by administrator)" : "Usage history (Stats)";
 
         var machine = AutoStart.IsMachineEnabled();
         _autostart.Checked = machine || AutoStart.IsUserEnabled();

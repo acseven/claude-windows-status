@@ -44,6 +44,7 @@ public sealed class Settings
     public bool ShowSessionTrayIcon { get; set; } = true;
     public bool ShowWeeklyTrayIcon { get; set; } = true;
     public bool NotificationsEnabled { get; set; } = true;
+    public bool HistoryEnabled { get; set; } = true;
 
     /// <summary>"window:threshold" → resets_at of the window we last notified for, so each alert fires once per window.</summary>
     public Dictionary<string, string> Notified { get; set; } = new();
@@ -82,6 +83,7 @@ public sealed class Settings
             foreach (var old in Accounts.Where(a => a != active && string.Equals(a.Email, email, StringComparison.OrdinalIgnoreCase)).ToList())
             {
                 active.OrganizationId ??= old.OrganizationId;
+                if (!InMemoryOnly) HistoryStore.MoveAccount(old.Id, active.Id); // no history left under a dropped id
                 Accounts.Remove(old);
             }
         }
@@ -90,6 +92,7 @@ public sealed class Settings
 
     public void Remove(SavedAccount account)
     {
+        if (!InMemoryOnly) HistoryStore.DeleteForAccount(account.Id); // no history left behind for a removed account
         var active = Active;
         Accounts.Remove(account);
         ActiveAccount = active is not null && active != account ? Accounts.IndexOf(active) : 0;
@@ -133,6 +136,8 @@ public sealed class Settings
         null => ShowTaskbarWidget,
     };
     [JsonIgnore] public int EffectiveRefreshMinutes => Policy.Current.RefreshMinutes ?? Math.Clamp(RefreshMinutes, 1, 60);
+    /// <summary>Policy "Turn off usage history" wins over the user's choice.</summary>
+    [JsonIgnore] public bool EffectiveHistory => !Policy.Current.DisableUsageHistory && HistoryEnabled;
     [JsonIgnore] public bool EffectiveNotifications => Policy.Current.DisableNotifications is bool off ? !off : NotificationsEnabled;
 
     static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };

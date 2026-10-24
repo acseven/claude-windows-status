@@ -129,6 +129,7 @@ public sealed class UsageMonitor : IDisposable
         {
             var policy = Policy.Current;
             if (_settings.RemoveDisallowed(policy, account) > 0) _settings.Save();
+            if (!_settings.InMemoryOnly) HistoryStore.DeleteDisallowedOrganizations(policy);
             ApplyInterval(); // picks up a RefreshMinutes policy changed while running
 
             // Re-resolve (and re-check) the identity when it is unknown or no longer allowed, e.g. when a

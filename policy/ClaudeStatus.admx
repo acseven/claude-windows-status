@@ -44,6 +44,13 @@
       <enabledValue><decimal value="1" /></enabledValue>
       <disabledValue><decimal value="0" /></disabledValue>
     </policy>
+    <policy name="DisableUsageHistory" class="Both" displayName="$(string.DisableUsageHistory)" explainText="$(string.DisableUsageHistory_Help)"
+            key="SOFTWARE\Policies\ClaudeStatus" valueName="DisableUsageHistory">
+      <parentCategory ref="ClaudeStatus" />
+      <supportedOn ref="SUPPORTED_Win10" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
     <policy name="AllowedEmailDomains" class="Both" displayName="$(string.AllowedEmailDomains)" explainText="$(string.AllowedEmailDomains_Help)"
             presentation="$(presentation.AllowedEmailDomains)" key="SOFTWARE\Policies\ClaudeStatus">
       <parentCategory ref="ClaudeStatus" />

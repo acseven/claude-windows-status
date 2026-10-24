@@ -71,6 +71,7 @@ function Invoke-Run([string] $name, [string[]] $appArgs, [int] $height, [int] $w
 Invoke-Run 'bars'         @('--demo', '--style=bars')                     160
 Invoke-Run 'compact'      @('--demo', '--style=compact')                  160
 Invoke-Run 'flyout'       @('--demo', '--style=bars', '--open-details')   480
+Invoke-Run 'stats'        @('--demo', '--style=bars', '--open-stats')     700
 Invoke-Run 'notification' @('--demo=alert', '--style=bars')               480 12
 Invoke-Run 'signed-out'   @('--style=bars')                               160
 # Network path through the embedded browser (informational: CI machines may be challenged by Cloudflare).

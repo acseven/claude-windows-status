@@ -18,6 +18,8 @@
       <string id="Style_IconOnly">Tray icon only</string>
       <string id="DisableNotifications">Turn off limit notifications</string>
       <string id="DisableNotifications_Help">Enabled: no Windows notifications when limits reach 70/90/100%. Disabled: notifications are always on. Not configured: users decide.</string>
+      <string id="DisableUsageHistory">Turn off usage history</string>
+      <string id="DisableUsageHistory_Help">Enabled: Claude Status records no usage history, deletes any history already stored for all of the user's accounts (for each Windows user, the next time Claude Status runs for that user), and hides the Stats tab, the trend lines and the forecasts; users cannot turn history on. Disabled or Not configured: users decide (history is on by default). History is kept only on the computer, per Windows user, account and organization: usage samples for 14 days and one summary per day for about 400 days. It never contains sessions, e-mail addresses or conversation content.</string>
       <string id="AllowedEmailDomains">Allowed account e-mail domains</string>
       <string id="AllowedEmailDomains_Help">Only Claude accounts whose e-mail address ends in one of these domains can be used, for example: example.com; example.org. Other accounts are refused and their stored session is deleted. If the e-mail address cannot be read, the account is refused. Not configured: any account.</string>
       <string id="AllowedOrganizations">Allowed Claude organizations</string>

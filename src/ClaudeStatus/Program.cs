@@ -147,9 +147,9 @@ static class Program
 /// <summary>
 /// Command line: --demo[=alert] shows sample data without signing in, --style=bars|compact|icon
 /// overrides the display for this run, --open-details opens the flyout (used for screenshots),
-/// --quit closes a running copy.
+/// --open-stats opens it on the Stats tab, --quit closes a running copy.
 /// </summary>
-sealed record Options(bool Demo, bool DemoAlert, WidgetStyle? Style, bool OpenDetails, bool Quit, string? SelfTestFile)
+sealed record Options(bool Demo, bool DemoAlert, WidgetStyle? Style, bool OpenDetails, bool Quit, string? SelfTestFile, bool OpenStats = false)
 {
     public static Options Parse(string[] args)
     {
@@ -162,7 +162,8 @@ sealed record Options(bool Demo, bool DemoAlert, WidgetStyle? Style, bool OpenDe
             _ => (WidgetStyle?)null,
         };
         var selfTest = args.FirstOrDefault(a => a.StartsWith("--selftest-network=", StringComparison.OrdinalIgnoreCase))?["--selftest-network=".Length..];
-        return new Options(Has("--demo") || Has("--demo=alert"), Has("--demo=alert"), style, Has("--open-details"), Has("--quit"), selfTest);
+        return new Options(Has("--demo") || Has("--demo=alert"), Has("--demo=alert"), style,
+            Has("--open-details") || Has("--open-stats"), Has("--quit"), selfTest, Has("--open-stats"));
     }
 }
 
@@ -177,6 +178,9 @@ sealed class Shell
     readonly TaskbarWidget _widget;
     readonly Notifier _notifier;
     DetailsWindow? _details;
+    HistoryStore? _historyStore;
+    string? _historyScope;
+    bool _openStatsOnce;
     bool _signingIn;
     bool _exiting;
 
@@ -205,6 +209,7 @@ sealed class Shell
 
         _monitor.Changed += () =>
         {
+            if (_monitor.State == MonitorState.Ok && _monitor.Last is { } s && !_options.Demo) History()?.Record(s);
             if (_monitor.State == MonitorState.Ok && _monitor.Last is { } snap) _notifier.Check(snap);
         };
     }
@@ -215,10 +220,13 @@ sealed class Shell
         if (_options.Demo)
         {
             _monitor.LoadDemo(_options.DemoAlert);
+            _openStatsOnce = _options.OpenStats;
             if (_options.OpenDetails) ShowDetails(_widget.Anchor);
             return;
         }
         _monitor.Start();
+        History(); // with the "Turn off usage history" policy set, deletes any history left on disk
+        _openStatsOnce = _options.OpenStats;
         if (_options.OpenDetails) ShowDetails(_widget.Anchor);
         if (string.IsNullOrEmpty(_settings.SessionKey))
             _tray.Notify("Claude Status", "Click here or the tray icon to sign in to your Claude account.");
@@ -247,7 +255,8 @@ sealed class Shell
         if (_monitor.State == MonitorState.SignedOut && _monitor.Last is null) { SignIn(); return; }
 
         var p = anchor ?? new Point(System.Windows.Forms.Cursor.Position.X, System.Windows.Forms.Cursor.Position.Y);
-        _details = new DetailsWindow(_monitor, p, _tray.ShowMenuAt, Exit);
+        _details = new DetailsWindow(_monitor, p, _tray.ShowMenuAt, Exit, History, _openStatsOnce);
+        _openStatsOnce = false;
         _details.Closed += (_, _) => _details = null;
         _details.Show();
     }
@@ -257,6 +266,32 @@ sealed class Shell
     {
         if (_details is not null) return;
         ShowDetails(_widget.Anchor);
+    }
+
+    /// <summary>
+    /// History of the active account + organisation, or null when usage history is off (by the user
+    /// or by policy). With the policy set, any history on disk is deleted.
+    /// </summary>
+    HistoryStore? History()
+    {
+        if (!_settings.EffectiveHistory)
+        {
+            _historyStore = null;
+            _historyScope = null;
+            if (!_options.Demo && Policy.Current.DisableUsageHistory && System.IO.Directory.Exists(HistoryStore.Folder))
+                HistoryStore.DeleteAll();
+            return null;
+        }
+        if (_monitor.Last is not { } snap) return null;
+        if (_options.Demo) return _historyStore ??= HistoryStore.Demo(snap);
+        // Reload when history files were deleted meanwhile (e.g. turned off and on again), so the
+        // copy in memory never writes deleted history back.
+        if (_historyScope != snap.Scope || _historyStore?.IsStale == true)
+        {
+            _historyStore = HistoryStore.ForScope(snap.Scope);
+            _historyScope = snap.Scope;
+        }
+        return _historyStore;
     }
 
     public void Exit()

@@ -66,6 +66,13 @@ outlined tile is the 7d limit:
   icon stands in until it fits again. Limit notifications appear either way.
 - **Two tray icons**, one for 5h and one for 7d. Each shows the percentage and is coloured by
   level: normal, amber from 70%, red from 90%.
+- **Stats**: in the flyout, the 5-hour and 7-day limits show a pace marker (how much of the window
+  has passed), a trend line and a forecast ("At this pace you reach the limit around 17:20"). The
+  **Stats** tab shows history for **14 days** (default), the **month** or the **year**, a heat map of
+  when you use Claude, records, and **Export CSV** / **Clear history**. History stays on the PC (per
+  Windows user, account and organisation: 14 days of samples, a daily summary for about 400 days),
+  never includes sessions or content, is deleted when you sign out of the account, and can be
+  turned off in the menu or by policy.
 - **Details flyout** with every limit the account has (session, weekly, Opus/Sonnet weekly,
   extra usage) and the local reset times.
 - **Windows notifications**, each sent once per limit window:
@@ -136,6 +143,7 @@ appear under **Computer/User Configuration → Administrative Templates → Clau
 | Refresh interval              | `RefreshMinutes` (DWORD, 1–60)                       | How often usage is checked               |
 | Taskbar display               | `WidgetStyle` (DWORD: 0 bars, 1 compact, 2 icons)    | Display style                            |
 | Turn off limit notifications  | `DisableNotifications` (DWORD 0/1)                   | Forces notifications off (1) or on (0)   |
+| Turn off usage history        | `DisableUsageHistory` (DWORD 0/1)                    | 1: no history, existing history deleted, Stats tab hidden |
 | Allowed account e-mail domains| `AllowedEmailDomains` (REG_SZ, `a.com; b.org`)        | Only accounts in these domains           |
 | Allowed Claude organizations  | `AllowedOrganizations` (REG_SZ, UUIDs separated by `;`) | Only these organisations                |
 
