@@ -51,6 +51,13 @@
       <enabledValue><decimal value="1" /></enabledValue>
       <disabledValue><decimal value="0" /></disabledValue>
     </policy>
+    <policy name="DisableExit" class="Both" displayName="$(string.DisableExit)" explainText="$(string.DisableExit_Help)"
+            key="SOFTWARE\Policies\ClaudeStatus" valueName="DisableExit">
+      <parentCategory ref="ClaudeStatus" />
+      <supportedOn ref="SUPPORTED_Win10" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
     <policy name="AllowedEmailDomains" class="Both" displayName="$(string.AllowedEmailDomains)" explainText="$(string.AllowedEmailDomains_Help)"
             presentation="$(presentation.AllowedEmailDomains)" key="SOFTWARE\Policies\ClaudeStatus">
       <parentCategory ref="ClaudeStatus" />

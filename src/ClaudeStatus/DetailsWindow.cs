@@ -64,7 +64,8 @@ public sealed class DetailsWindow : Window
             showMenu(p);
         });
         buttons.Children.Add(account);
-        buttons.Children.Add(Make("Quit", (_, _) => { Close(); quit(); }));
+        if (!Policy.Current.DisableExit) // administrators can remove the user's way to quit
+            buttons.Children.Add(Make("Quit", (_, _) => { Close(); quit(); }));
 
         var outer = new StackPanel();
         outer.Children.Add(_body);

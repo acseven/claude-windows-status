@@ -94,7 +94,7 @@ outlined tile is the 7d limit:
   notification state is per account and organisation.
 - **Always reachable**: right-click the widget or a tray icon for the menu, or start Claude Status
   again from the Start menu to open the details flyout of the running copy. The flyout has
-  **Account ▾** and **Quit** buttons; `ClaudeStatus.exe --quit` closes it from a script.
+  **Account ▾** and **Quit** buttons; `ClaudeStatus.exe --quit` closes it from a script (not with "Do not allow users to quit" set).
 - **Sign in once** in a built-in Microsoft Edge (WebView2) window, the same way as on claude.ai.
   Windows single sign-on is on: if your organisation signs in to Claude with Microsoft (Entra ID)
   SSO, the Microsoft account picker offers the account you are signed in to Windows with, plus
@@ -159,9 +159,19 @@ appear under **Computer/User Configuration → Administrative Templates → Clau
 | Refresh interval              | `RefreshMinutes` (DWORD, 1–60)                       | How often usage is checked               |
 | Taskbar display               | `WidgetStyle` (DWORD: 0 bars, 1 compact, 2 icons)    | 0/1: widget on with that layout; 2: no widget. Tray icons stay user-controlled |
 | Turn off limit notifications  | `DisableNotifications` (DWORD 0/1)                   | Forces notifications off (1) or on (0)   |
+| Do not allow users to quit    | `DisableExit` (DWORD 0/1)                            | 1: Quit greyed out in the menu, no Quit button in the flyout, `--quit` and a plain close request ignored |
 | Turn off usage history        | `DisableUsageHistory` (DWORD 0/1)                    | 1: no history, existing history deleted, Stats tab hidden |
 | Allowed account e-mail domains| `AllowedEmailDomains` (REG_SZ, `a.com; b.org`)        | Only accounts in these domains           |
 | Allowed Claude organizations  | `AllowedOrganizations` (REG_SZ, UUIDs separated by `;`) | Only these organisations                |
+
+"Do not allow users to quit" removes the user's ways to switch Claude Status off from its own
+interface. It is a guard rail for users, **not a security boundary**, and it does not try to defeat
+Windows or administrators: Claude Status still closes on sign-out, shutdown and restart, when the
+installer upgrades or removes it (the installer ends the process after 5 seconds, and a ghost tray icon can
+stay until the mouse moves over it), and when a newer or different version is started and replaces it
+(an older version cannot replace a running copy that has this policy). A user can still end the process in
+Task Manager or with `taskkill /f`; restrict that separately (for example with AppLocker or by removing
+Task Manager through policy) if it matters.
 
 Accounts refused by the two "Allowed" policies are removed together with their stored session,
 and the user is told why. If the e-mail address cannot be read, the account is refused (fail
@@ -193,7 +203,8 @@ and are never stored at machine level.
 - **Which file installs it?** The `-setup.msi` file is the installer. The `-portable.exe` file is
   the app itself and does not install anything.
 - **Quit it** from the menu (right-click the widget or a tray icon), the **Quit** button in the
-  flyout, or `ClaudeStatus.exe --quit`.
+  flyout, or `ClaudeStatus.exe --quit`. If your administrator set "Do not allow users to quit", the
+  menu item is greyed out, the flyout has no Quit button and `--quit` does nothing.
 - **"claude.ai is asking for a browser check (Cloudflare)"**: the app reloads its hidden page and
   retries automatically within about 20 seconds.
 - **The widget is not on the taskbar**: there is not enough free space between the taskbar
@@ -268,7 +279,7 @@ Command-line switches, useful for testing:
 | `--demo` / `--demo=alert`       | Sample data, no sign-in, nothing saved         |
 | `--style=bars\|compact\|icon`   | Display style for this run                     |
 | `--open-details` / `--open-stats` | Open the details flyout (Now / Stats tab) at start |
-| `--quit`                        | Close the running copy                         |
+| `--quit`                        | Close the running copy (ignored under the `DisableExit` policy) |
 | `--selftest-network=FILE`       | One test request through the embedded browser; result in FILE |
 
 ## How it works

@@ -140,5 +140,59 @@ if ($Msi) {
     Write-Host 'silent install/uninstall OK'
 }
 
+# Policy "Do not allow users to quit" (DisableExit): quit paths are ignored; takeover and installer still work.
+Write-Host "== DisableExit policy"
+# Positive control: without the policy a plain close request (taskkill without /f) does close the app.
+# Otherwise the "ignored under the policy" check below could pass without testing anything.
+$ctl = Start-Process -FilePath $Exe -ArgumentList '--demo' -PassThru
+Start-Sleep -Seconds 6
+& taskkill /PID $ctl.Id | Out-Null
+if (-not $ctl.WaitForExit(15000)) { Stop-Process -Id $ctl.Id -Force; throw 'control: a plain close request did not close the app, so the DisableExit check would prove nothing' }
+Write-Host 'control: a plain close request closes the app (no policy)'
+$polKey = 'HKLM:\SOFTWARE\Policies\ClaudeStatus'
+try {
+    New-Item -Path $polKey -Force | Out-Null
+    Set-ItemProperty -Path $polKey -Name DisableExit -Value 1 -Type DWord
+    $locked = Start-Process -FilePath $Exe -ArgumentList '--demo' -PassThru
+    Start-Sleep -Seconds 6
+    Start-Process -FilePath $Exe -ArgumentList '--quit' -Wait
+    Start-Sleep -Seconds 4
+    if ($locked.HasExited) { throw 'DisableExit: --quit closed the app' }
+    Write-Host 'DisableExit: --quit ignored'
+
+    # Taskkill without /f sends a plain close request.
+    & taskkill /PID $locked.Id | Out-Null
+    Start-Sleep -Seconds 4
+    if ($locked.HasExited) { throw 'DisableExit: a plain close request closed the app' }
+    Write-Host 'DisableExit: plain close request ignored'
+
+    # A different copy still takes over.
+    $otherDir2 = Join-Path $env:TEMP 'claudestatus-other2'
+    New-Item -ItemType Directory -Force $otherDir2 | Out-Null
+    $other2 = Join-Path $otherDir2 'ClaudeStatus.exe'
+    Copy-Item $Exe $other2 -Force
+    $taker = Start-Process -FilePath $other2 -ArgumentList '--demo' -PassThru
+    if (-not $locked.WaitForExit(25000)) { throw 'DisableExit: takeover did not replace the running copy' }
+    Start-Sleep -Seconds 4
+    if ($taker.HasExited) { throw 'DisableExit: the taking-over copy exited' }
+    Write-Host 'DisableExit: takeover works'
+
+    if ($Msi) {
+        # The installer must still be able to replace a running, locked copy (it ends the process itself).
+        $p = Start-Process msiexec.exe -ArgumentList @('/i', "`"$Msi`"", '/qn') -Wait -PassThru
+        if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { throw "DisableExit: silent install failed: $($p.ExitCode)" }
+        if (-not $taker.WaitForExit(30000)) { throw 'DisableExit: installer did not end the running copy' }
+        Write-Host 'DisableExit: installer ends the running copy'
+        $u = Start-Process msiexec.exe -ArgumentList @('/x', "`"$Msi`"", '/qn') -Wait -PassThru
+        if ($u.ExitCode -ne 0) { throw "DisableExit: silent uninstall failed: $($u.ExitCode)" }
+    }
+}
+finally {
+    Remove-Item -Path $polKey -Recurse -Force -ErrorAction SilentlyContinue
+    # Leave the runner clean even if an assertion above failed after the install (1605 = not installed: fine).
+    if ($Msi) { Start-Process msiexec.exe -ArgumentList @('/x', "`"$Msi`"", '/qn') -Wait -ErrorAction SilentlyContinue | Out-Null }
+    Get-Process -Name ClaudeStatus -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+}
+
 Write-Host "Screenshots in $OutDir"
 

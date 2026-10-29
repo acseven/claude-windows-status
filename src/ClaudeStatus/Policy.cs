@@ -6,12 +6,14 @@ namespace ClaudeStatus;
 /// Administrator settings from Group Policy (see policy/ClaudeStatus.admx):
 /// HKLM\SOFTWARE\Policies\ClaudeStatus, then HKCU\SOFTWARE\Policies\ClaudeStatus.
 /// A configured value overrides the user's choice and greys out the menu item; for the "turn off"
-/// switches (DisableNotifications, DisableUsageHistory) see their ADML help for what 0 means.
+/// switches (DisableNotifications, DisableUsageHistory, DisableExit) see their ADML help for what 0 means.
+/// DisableExit removes the user-facing ways to quit (menu, flyout button, --quit, closing the window); Windows
+/// sign-out/shutdown, the installer and a different version taking over still close the app.
 /// AllowedEmailDomains / AllowedOrganizations restrict which Claude accounts and organisations may be
 /// used (fail closed: an account whose e-mail cannot be read is refused when domains are set).
 /// </summary>
 public sealed record Policy(int? RefreshMinutes, WidgetStyle? WidgetStyle, bool? DisableNotifications,
-    string[]? AllowedEmailDomains, string[]? AllowedOrganizations, bool DisableUsageHistory)
+    string[]? AllowedEmailDomains, string[]? AllowedOrganizations, bool DisableUsageHistory, bool DisableExit)
 {
     const string KeyPath = @"SOFTWARE\Policies\ClaudeStatus";
 
@@ -35,13 +37,15 @@ public sealed record Policy(int? RefreshMinutes, WidgetStyle? WidgetStyle, bool?
         var style = ReadDword("WidgetStyle");
         var noNotify = ReadDword("DisableNotifications");
         var noHistory = ReadDword("DisableUsageHistory");
+        var noExit = ReadDword("DisableExit");
         return new Policy(
             refresh is int r ? Math.Clamp(r, 1, 60) : null,
             style is int s && Enum.IsDefined(typeof(WidgetStyle), s) ? (WidgetStyle)s : null,
             noNotify is int n ? n != 0 : null,
             ReadList("AllowedEmailDomains")?.Select(d => d.TrimStart('@')).ToArray(),
             ReadList("AllowedOrganizations"),
-            noHistory is int h && h != 0);
+            noHistory is int h && h != 0,
+            noExit is int x && x != 0);
     }
 
     public bool AllowsEmail(string? email) =>

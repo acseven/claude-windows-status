@@ -17,6 +17,7 @@ public sealed class TrayController : IDisposable
     readonly Action _signIn;
     readonly Action<System.Windows.Point?> _showDetails;
     readonly Action _exit;
+    readonly WinForms.ToolStripMenuItem _quit = new("Quit Claude Status");
 
     readonly WinForms.NotifyIcon _icon = new();       // 5h; also carries the notifications
     readonly WinForms.NotifyIcon _weeklyIcon = new(); // 7d
@@ -106,7 +107,8 @@ public sealed class TrayController : IDisposable
         Menu.Items.Add(_account);
         Menu.Items.Add(_organization);
         Menu.Items.Add(new WinForms.ToolStripSeparator());
-        Menu.Items.Add("Quit Claude Status", null, (_, _) => _exit());
+        _quit.Click += (_, _) => _exit();
+        Menu.Items.Add(_quit);
         Menu.Opening += (_, _) => SyncMenu();
 
         foreach (var icon in new[] { _icon, _weeklyIcon })
@@ -197,6 +199,8 @@ public sealed class TrayController : IDisposable
         _interval.Enabled = p.RefreshMinutes is null;
         _notify.Checked = _settings.EffectiveNotifications;
         _notify.Enabled = p.DisableNotifications is null;
+        _quit.Enabled = !p.DisableExit;
+        _quit.Text = p.DisableExit ? "Quit Claude Status (not allowed by administrator)" : "Quit Claude Status";
         _history.Checked = _settings.EffectiveHistory;
         _history.Enabled = !p.DisableUsageHistory;
         _history.Text = p.DisableUsageHistory ? "Usage history (off by administrator)" : "Usage history (Stats)";

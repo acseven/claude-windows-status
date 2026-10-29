@@ -24,7 +24,10 @@ The check:
    `README.md` agrees.
 3. **Policies are enforced wherever the setting is used.** Behaviour goes through the `Effective*`
    properties in `Settings.cs` or `Policy.Current`, never the raw user setting; menu items for
-   policy-controlled settings are greyed out.
+   policy-controlled settings are greyed out. Every way to quit (tray menu, flyout button, `--quit`,
+   a plain WM_CLOSE) honours `DisableExit`; sign-out/shutdown (`SessionEnding`), the installer
+   (`CloseApplication` terminates after its timeout) and takeover by a different version
+   (`TakeoverSignal`) must keep working under it. Adding a new way to exit means checking it.
 4. **Tenancy policies fail closed.** `AllowedEmailDomains` / `AllowedOrganizations`: a refused
    account is removed with its stored session and its usage history, and the user is told; history
    of a refused organisation is deleted; an unreadable e-mail is refused when domains are set;

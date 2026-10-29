@@ -6,7 +6,8 @@ namespace ClaudeStatus;
 static class Program
 {
     const string ShowSignal = @"Local\ClaudeStatus.Show";
-    const string QuitSignal = @"Local\ClaudeStatus.Quit";
+    const string QuitSignal = @"Local\ClaudeStatus.Quit";         // --quit
+    const string TakeoverSignal = @"Local\ClaudeStatus.Takeover"; // a different version/location replaces this copy
 
     [STAThread]
     static void Main(string[] args)
@@ -32,7 +33,10 @@ static class Program
                 return;
             }
             // A different version or location (an upgrade, the portable exe next to the installed
-            // one): the running copy quits and this one takes over.
+            // one): the running copy quits and this one takes over. That works even when the
+            // DisableExit policy is set (the new copy is under the same policy). Copies from before
+            // the takeover signal only know the quit signal, so both are sent.
+            Signal(TakeoverSignal);
             Signal(QuitSignal);
             try { first = mutex.WaitOne(TimeSpan.FromSeconds(15)); }
             catch (AbandonedMutexException) { first = true; }
@@ -46,6 +50,7 @@ static class Program
 
         using var show = new EventWaitHandle(false, EventResetMode.AutoReset, ShowSignal);
         using var quit = new EventWaitHandle(false, EventResetMode.AutoReset, QuitSignal);
+        using var takeover = new EventWaitHandle(false, EventResetMode.AutoReset, TakeoverSignal);
 
         System.Windows.Forms.Application.EnableVisualStyles();
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
@@ -55,12 +60,15 @@ static class Program
             shell.Start();
             var listener = new Thread(() =>
             {
-                var handles = new WaitHandle[] { show, quit };
+                var handles = new WaitHandle[] { show, quit, takeover };
                 while (true)
                 {
-                    var which = WaitHandle.WaitAny(handles);
-                    app.Dispatcher.BeginInvoke(which == 0 ? shell.ShowFromSignal : shell.Exit);
-                    if (which == 1) return;
+                    switch (WaitHandle.WaitAny(handles))
+                    {
+                        case 0: app.Dispatcher.BeginInvoke(shell.ShowFromSignal); break;
+                        case 1: app.Dispatcher.BeginInvoke(shell.QuitRequested); break; // ignored under DisableExit
+                        default: app.Dispatcher.BeginInvoke(shell.Exit); return;
+                    }
                 }
             }) { IsBackground = true, Name = "single-instance" };
             listener.Start();
@@ -183,6 +191,7 @@ sealed class Shell
     bool _openStatsOnce;
     bool _signingIn;
     bool _exiting;
+    long _sessionEndingTick = long.MinValue; // when Windows last asked this session to end
 
     public Shell(Application app, Options options)
     {
@@ -193,7 +202,11 @@ sealed class Shell
         if (options.Style is WidgetStyle.IconOnly) _settings.ShowTaskbarWidget = false;
         else if (options.Style is { } style) _settings.WidgetStyle = style;
         _monitor = new UsageMonitor(_settings);
-        _tray = new TrayController(_settings, _monitor, SignIn, ShowDetails, () => _widget!.ResetPosition(), Exit);
+        _tray = new TrayController(_settings, _monitor, SignIn, ShowDetails, () => _widget!.ResetPosition(), QuitRequested);
+        // Sign-out, shutdown and restart must never be blocked, whatever the policy says.
+        // Windows gives no "cancelled" event when another program vetoes the shutdown, so the flag only
+        // counts for a short while instead of staying set for the rest of the run.
+        _app.SessionEnding += (_, _) => _sessionEndingTick = Environment.TickCount64;
         _widget = new TaskbarWidget(_settings, _monitor, _tray.ShowMenuAt, ShowDetails);
         _widget.ShownChanged += _tray.SetWidgetShown;
         // The installer (and Windows) ask the app to close by sending WM_CLOSE to its windows.
@@ -201,6 +214,9 @@ sealed class Shell
         {
             if (_exiting) return;
             e.Cancel = true;
+            // DisableExit: a plain close request (e.g. "taskkill" without /f) is ignored. The installer
+            // still ends the process itself (util:CloseApplication terminates it after its timeout).
+            if (Policy.Current.DisableExit && !SessionEndingNow) return;
             // Close() cannot be called while the widget is inside its own Closing event.
             _widget.Dispatcher.BeginInvoke(new Action(Exit));
         };
@@ -255,7 +271,7 @@ sealed class Shell
         if (_monitor.State == MonitorState.SignedOut && _monitor.Last is null) { SignIn(); return; }
 
         var p = anchor ?? new Point(System.Windows.Forms.Cursor.Position.X, System.Windows.Forms.Cursor.Position.Y);
-        _details = new DetailsWindow(_monitor, p, _tray.ShowMenuAt, Exit, History, _openStatsOnce);
+        _details = new DetailsWindow(_monitor, p, _tray.ShowMenuAt, QuitRequested, History, _openStatsOnce);
         _openStatsOnce = false;
         _details.Closed += (_, _) => _details = null;
         _details.Show();
@@ -292,6 +308,15 @@ sealed class Shell
             _historyScope = snap.Scope;
         }
         return _historyStore;
+    }
+
+    /// <summary>The user (menu, flyout button) or <c>--quit</c> asks to quit: not allowed under DisableExit.</summary>
+    bool SessionEndingNow => _sessionEndingTick != long.MinValue && Environment.TickCount64 - _sessionEndingTick < 30_000;
+
+    public void QuitRequested()
+    {
+        if (Policy.Current.DisableExit) return;
+        Exit();
     }
 
     public void Exit()
