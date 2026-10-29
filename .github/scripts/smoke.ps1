@@ -129,14 +129,14 @@ if ($Msi) {
     if ($p.ExitCode -ne 0) { throw "silent install failed: $($p.ExitCode)" }
     if (-not $running.WaitForExit(15000)) { throw 'installer did not close the running copy' }
     Write-Host "running copy closed by the installer (exit code $($running.ExitCode))"
-    $exe = Join-Path $env:ProgramFiles 'Claude Status\ClaudeStatus.exe'
-    if (-not (Test-Path $exe)) { throw "not installed: $exe" }
+    $installedExe = Join-Path $env:ProgramFiles 'Claude Status\ClaudeStatus.exe'
+    if (-not (Test-Path $installedExe)) { throw "not installed: $installedExe" }
     $run = Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Run' -Name ClaudeStatus -ErrorAction SilentlyContinue
     if (-not $run) { throw 'autostart entry missing' }
-    Write-Host "installed: $exe; autostart: $($run.ClaudeStatus)"
+    Write-Host "installed: $installedExe; autostart: $($run.ClaudeStatus)"
     $p = Start-Process msiexec.exe -ArgumentList @('/x', "`"$Msi`"", '/qn') -Wait -PassThru
     if ($p.ExitCode -ne 0) { throw "silent uninstall failed: $($p.ExitCode)" }
-    if (Test-Path $exe) { throw 'uninstall left the exe behind' }
+    if (Test-Path $installedExe) { throw 'uninstall left the exe behind' }
     Write-Host 'silent install/uninstall OK'
 }
 
