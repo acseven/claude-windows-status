@@ -131,6 +131,17 @@ Other system tray icons** and turn on both *Claude Status* entries.
    running Claude Status first. It is per-machine (Program Files), adds a Start
    menu shortcut, and starts automatically for every user at sign-in (an HKLM `Run` entry).
 
+**File name on the share.** The MSI registers its version as `YY.M.number` (for example `26.10.11`
+for release `2026.10.11`), and that is the version Windows reports (Add/Remove Programs, registry
+`DisplayVersion`). If a start-up or install script compares the installed version with the version in
+the file name, both must use the same form, otherwise the script sees a difference at every start and
+reinstalls the app each time. So on the share, name the file with the MSI version:
+
+```text
+Release asset:   ClaudeStatus-2026.10.11-x64-setup.msi
+On the share:    ClaudeStatus_26.10.11_x64.msi        (YYYY-2000 . M . number)
+```
+
 To skip the autostart entry, deploy with `AUTOSTART=0`. Use a transform (`.mst`) for GPO, or
 `msiexec /i ClaudeStatus-<version>-x64-setup.msi AUTOSTART=0 /qn` for Intune, SCCM or scripts.
 
@@ -219,7 +230,8 @@ app's own version all use this form.
 
 The only exception is the MSI's internal ProductVersion: Windows Installer allows at most 255 in
 the first field, so it is **YY.M.number** (`26.10.1`). Upgrades compare correctly, and
-Add/Remove Programs shows this short form.
+Add/Remove Programs and the registry show this short form. Scripts that compare the installed
+version with a file name must use the short form too (see "File name on the share" above).
 
 Releases are never published automatically. When a build is ready, go to **Actions → build →
 Run workflow** and tick **Publish a release**. The workflow picks the next free number for the

@@ -50,8 +50,23 @@ organisation id, never by label or e-mail. Changes touching these paths need a r
 - New behaviour should be visible in the smoke test where possible (demo data via `--demo`).
 - `ci-screenshots` is a CI-owned branch (force pushed); never commit to it by hand.
 
+## Versions and deployment shares
+
+- Versions are `YYYY.M.number` (`2026.10.11`) everywhere (tags, releases, release file names, app
+  version) **except** the MSI's ProductVersion, which is `YY.M.number` (`26.10.11`): Windows
+  Installer allows at most 255 in the first field. Conversion: `(YYYY - 2000).M.number`.
+- Windows and install scripts see only the MSI's ProductVersion (registry `DisplayVersion`,
+  Add/Remove Programs, `msiexec` logs), i.e. `26.10.11`. Anything that compares an installed version
+  with a **file name** must use the same form, or it sees "different" every time and **reinstalls
+  the app at every start-up**.
+- Therefore the copy of the installer on a deployment share (GPO, start-up script, Intune, SCCM) is
+  named `ClaudeStatus_<YY.M.N>_<arch>.msi`, e.g. `ClaudeStatus_26.10.11_x64.msi`. Release assets keep
+  the full form (`ClaudeStatus-2026.10.11-x64-setup.msi`); rename when copying to the share.
+- Never compare `2026.10.11` against `26.10.11` as strings; convert one to the other first.
+- Any change to version numbering, MSI naming or the installer's version properties must keep these
+  statements true and update the README ("Deploying with Group Policy" and "Versions and releases").
+
 ## Other conventions
 
-- Versions are `YYYY.M.number`; the MSI ProductVersion is `YY.M.number`. File names use the full form.
 - Never put personal information (names, e-mail addresses, company names, internal hosts) in the repo.
 - Releases are only made on purpose (see README, "Versions and releases").
