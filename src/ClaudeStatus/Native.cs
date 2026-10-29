@@ -38,7 +38,7 @@ static class Native
     const int ABS_AUTOHIDE = 1;
 
     public static readonly IntPtr HWND_TOPMOST = new(-1);
-    public const uint SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOACTIVATE = 0x10, SWP_SHOWWINDOW = 0x40;
+    public const uint SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOZORDER = 0x4, SWP_NOACTIVATE = 0x10, SWP_SHOWWINDOW = 0x40;
     public const int SW_HIDE = 0, SW_SHOWNOACTIVATE = 4;
     public const int GWL_EXSTYLE = -20;
     public const int WS_EX_TOOLWINDOW = 0x80, WS_EX_NOACTIVATE = 0x08000000;
@@ -50,6 +50,11 @@ static class Native
     [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int cmd);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
+    [DllImport("user32.dll")] static extern IntPtr GetTopWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] static extern IntPtr GetWindow(IntPtr hWnd, uint cmd);
+    [DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr hWnd, int attr, out int value, int size);
+    const uint GW_HWNDNEXT = 2;
+    const int WS_EX_TOPMOST = 0x8, DWMWA_CLOAKED = 14;
     [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] static extern IntPtr GetShellWindow();
     [DllImport("user32.dll")] static extern IntPtr MonitorFromWindow(IntPtr hWnd, uint flags);
@@ -102,6 +107,31 @@ static class Native
         if (!GetMonitorInfo(MonitorFromWindow(fg, 2 /* NEAREST */), ref mi)) return false;
         var m = mi.rcMonitor;
         return w.Left <= m.Left && w.Top <= m.Top && w.Right >= m.Right && w.Bottom >= m.Bottom;
+    }
+
+    /// <summary>
+    /// True when another always-on-top window (a context menu, the hidden-icons tray, a flyout) is above
+    /// <paramref name="self"/> and overlaps <paramref name="area"/>. Raising the widget then would draw it
+    /// over that window. The taskbar itself does not count: it is re-ordered under the widget on purpose.
+    /// </summary>
+    public static bool IsCoveredByOtherTopmost(IntPtr self, RECT area)
+    {
+        var sb = new System.Text.StringBuilder(64);
+        var guard = 0;
+        for (var w = GetTopWindow(IntPtr.Zero); w != IntPtr.Zero && w != self && guard++ < 400; w = GetWindow(w, GW_HWNDNEXT))
+        {
+            if ((((long)GetWindowLongPtr(w, GWL_EXSTYLE)) & WS_EX_TOPMOST) == 0) break; // below here nothing is above us
+            if (!IsWindowVisible(w)) continue;
+            if (DwmGetWindowAttribute(w, DWMWA_CLOAKED, out var cloaked, sizeof(int)) == 0 && cloaked != 0) continue;
+            if (!GetWindowRect(w, out var r) || r.Width <= 0 || r.Height <= 0) continue;
+            if (r.Left >= area.Right || r.Right <= area.Left || r.Top >= area.Bottom || r.Bottom <= area.Top) continue;
+
+            sb.Clear();
+            GetClassName(w, sb, sb.Capacity);
+            if (sb.ToString() is "Shell_TrayWnd" or "Shell_SecondaryTrayWnd") continue;
+            return true;
+        }
+        return false;
     }
 
     /// <summary>Hide from Alt-Tab and never take focus.</summary>

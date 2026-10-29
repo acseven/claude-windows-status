@@ -256,8 +256,11 @@ public sealed class TaskbarWidget : Window
         x = right - me.Width;
         y = b.Top + (b.Height - me.Height) / 2;
 
-        Native.SetWindowPos(_hwnd, Native.HWND_TOPMOST, x, y, 0, 0,
-            Native.SWP_NOSIZE | Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
+        // Keep above the taskbar, but never above a menu or flyout that is open over the widget
+        // (tray menus, the hidden-icons tray): then only move, and leave the z-order alone.
+        var covered = Native.IsCoveredByOtherTopmost(_hwnd, new Native.RECT { Left = x, Top = y, Right = x + me.Width, Bottom = y + me.Height });
+        Native.SetWindowPos(_hwnd, covered ? IntPtr.Zero : Native.HWND_TOPMOST, x, y, 0, 0,
+            Native.SWP_NOSIZE | Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW | (covered ? Native.SWP_NOZORDER : 0));
         SetShown(true);
     }
 
