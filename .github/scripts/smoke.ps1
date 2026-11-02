@@ -112,7 +112,7 @@ Start-Sleep -Seconds 6
 $extra = 1..3 | ForEach-Object { Start-Process -FilePath $Exe -ArgumentList '--demo' -PassThru }
 foreach ($e in $extra) { if (-not $e.WaitForExit(15000)) { throw "single instance: a second copy kept running (PID $($e.Id))" } }
 if ($first.HasExited) { throw 'single instance: the first copy exited when started again' }
-$count = @(Get-Process -Name ClaudeStatus -ErrorAction SilentlyContinue).Count
+$count = @(Get-Process -Name ([IO.Path]::GetFileNameWithoutExtension($Exe)) -ErrorAction SilentlyContinue).Count
 if ($count -ne 1) { throw "single instance: $count copies running" }
 Stop-Process -Id $first.Id -Force
 Start-Sleep -Seconds 2
