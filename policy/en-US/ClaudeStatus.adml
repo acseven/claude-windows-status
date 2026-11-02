@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policyDefinitionResources xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                           xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                           revision="1.0" schemaVersion="1.0"
+                           xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions">
+  <displayName>Claude Status</displayName>
+  <description>Settings for the Claude Status taskbar utility.</description>
+  <resources>
+    <stringTable>
+      <string id="SUPPORTED_Win10">Windows 10 or later</string>
+      <string id="Cat_ClaudeStatus">Claude Status</string>
+      <string id="RefreshMinutes">Refresh interval</string>
+      <string id="RefreshMinutes_Help">How often, in minutes (1–60), Claude Status checks usage on claude.ai. When set, users cannot change it.</string>
+      <string id="WidgetStyle">Taskbar display</string>
+      <string id="WidgetStyle_Help">Bars: taskbar widget shown, two rows (5-hour session and 7-day limit). Compact: taskbar widget shown, one line. Tray icons only: no taskbar widget. When set, users cannot switch the widget or change its layout. The two tray icons stay under the user's control (at least one of widget / tray icons is always shown). The widget only appears where it fits between the taskbar buttons and the notification area.</string>
+      <string id="Style_Bars">Bars (two rows)</string>
+      <string id="Style_Compact">Compact (one line)</string>
+      <string id="Style_IconOnly">Tray icon only</string>
+      <string id="DisableNotifications">Turn off limit notifications</string>
+      <string id="DisableNotifications_Help">Enabled: no Windows notifications when limits reach 70/90/100%. Disabled: notifications are always on. Not configured: users decide.</string>
+      <string id="DisableUsageHistory">Turn off usage history</string>
+      <string id="DisableUsageHistory_Help">Enabled: Claude Status records no usage history, deletes any history already stored for all of the user's accounts (for each Windows user, the next time Claude Status runs for that user), and hides the Stats tab, the trend lines and the forecasts; users cannot turn history on. Disabled or Not configured: users decide (history is on by default). History is kept only on the computer, per Windows user, account and organization: usage samples for 14 days and one summary per day for about 400 days. It never contains sessions, e-mail addresses or conversation content.</string>
+      <string id="DisableExit">Do not allow users to quit Claude Status</string>
+      <string id="DisableExit_Help">Enabled: the Quit command in the menu is greyed out and the Quit button is removed from the flyout, "ClaudeStatus.exe --quit" is ignored, and a plain close request (for example "taskkill" without /f) is ignored, so users cannot switch Claude Status off from its own interface. Claude Status still closes when Windows signs out, shuts down or restarts, when the installer upgrades or removes it, and when a different version of Claude Status is started and replaces it. This does not stop a user from ending the process with Task Manager or "taskkill /f"; restrict that separately if needed. This is a guard rail for users, not a security boundary. Disabled or Not configured: users can quit.</string>
+      <string id="AllowedEmailDomains">Allowed account e-mail domains</string>
+      <string id="AllowedEmailDomains_Help">Only Claude accounts whose e-mail address ends in one of these domains can be used, for example: example.com; example.org. Other accounts are refused and their stored session is deleted. If the e-mail address cannot be read, the account is refused. Not configured: any account.</string>
+      <string id="AllowedOrganizations">Allowed Claude organizations</string>
+      <string id="AllowedOrganizations_Help">Only these Claude organization IDs (UUIDs, separated by ";") can be tracked. Accounts with none of them are refused and their stored session is deleted. Not configured: any organization.</string>
+    </stringTable>
+    <presentationTable>
+      <presentation id="RefreshMinutes">
+        <decimalTextBox refId="RefreshMinutes" defaultValue="2">Minutes:</decimalTextBox>
+      </presentation>
+      <presentation id="WidgetStyle">
+        <dropdownList refId="WidgetStyle" defaultItem="0">Display:</dropdownList>
+      </presentation>
+      <presentation id="AllowedEmailDomains">
+        <textBox refId="AllowedEmailDomains"><label>Domains (separated by ;):</label></textBox>
+      </presentation>
+      <presentation id="AllowedOrganizations">
+        <textBox refId="AllowedOrganizations"><label>Organization IDs (separated by ;):</label></textBox>
+      </presentation>
+    </presentationTable>
+  </resources>
+</policyDefinitionResources>

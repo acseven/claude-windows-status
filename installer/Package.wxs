@@ -1,0 +1,77 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+  <!-- UpgradeCode must never change: it lets new versions replace old ones (and GPO upgrades work). -->
+  <Package Name="Claude Status"
+           Manufacturer="Claude Status contributors"
+           Version="$(var.Version)"
+           UpgradeCode="3cfb7184-5671-4234-bda5-0a6928ef18ef"
+           Scope="perMachine">
+
+    <SummaryInformation Description="Claude Status $(var.DisplayVersion) – Claude plan usage on the Windows taskbar" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Claude Status is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Close running copies before install, upgrade, repair or uninstall: ask politely (WM_CLOSE,
+         the app exits cleanly and removes its tray icons), then end the process after 5 seconds. -->
+    <util:CloseApplication Id="CloseClaudeStatus" Target="ClaudeStatus.exe"
+                           CloseMessage="yes" RebootPrompt="no" TerminateProcess="0" Timeout="5" />
+
+    <!-- AUTOSTART=0 leaves out the all-users autostart feature in silent/GPO installs
+         (msiexec /i ClaudeStatus-<version>-x64-setup.msi AUTOSTART=0 /qn, or a transform for GPO). -->
+    <Property Id="AUTOSTART" Value="1" />
+
+    <!-- Icons come from the small .ico, not the exe: an Icon entry embeds its whole source file.
+         The shortcut's Icon Id must end in .exe to match the key file (ICE50); Windows reads the
+         icon from the file's content. -->
+    <Icon Id="ShortcutIcon.exe" SourceFile="../src/ClaudeStatus/app.ico" />
+    <Icon Id="AppIcon.ico" SourceFile="../src/ClaudeStatus/app.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
+    <Property Id="ARPURLINFOABOUT" Value="https://claude.ai/settings/usage" />
+    <Property Id="ARPCOMMENTS" Value="Version $(var.DisplayVersion)" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Claude Status">
+        <Component Id="MainExecutable">
+          <File Id="ClaudeStatusExe" Source="$(var.PublishDir)/ClaudeStatus.exe" KeyPath="yes">
+            <!-- Advertised shortcut: valid for a per-machine package (ICE38/43/57). -->
+            <Shortcut Id="ClaudeStatusShortcut" Directory="ProgramMenuFolder" Name="Claude Status"
+                      Description="Claude usage on the taskbar" WorkingDirectory="INSTALLFOLDER" Advertise="yes" Icon="ShortcutIcon.exe" />
+          </File>
+        </Component>
+        <Component Id="AutoStartAllUsers" Guid="6f1d2a4e-0f5b-4a37-9a0e-2b8d4c7f1e93">
+          <RegistryValue Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Run" Name="ClaudeStatus"
+                         Type="string" Value="&quot;[INSTALLFOLDER]ClaudeStatus.exe&quot;" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder" />
+
+    <Feature Id="Main" Title="Claude Status" Description="The taskbar widget, tray icons and Start menu shortcut."
+             Display="expand" AllowAbsent="no" ConfigurableDirectory="INSTALLFOLDER">
+      <ComponentRef Id="MainExecutable" />
+      <Feature Id="AutoStart" Title="Start automatically for all users"
+               Description="Starts Claude Status when any user signs in to Windows. Users can still turn it off for themselves.">
+        <Level Value="0" Condition="AUTOSTART = &quot;0&quot;" />
+        <ComponentRef Id="AutoStartAllUsers" />
+      </Feature>
+    </Feature>
+
+    <!-- Wizard: Welcome → Licence → Options (features, install folder) → Ready → Progress → Finish. -->
+    <WixVariable Id="WixUILicenseRtf" Value="License.rtf" />
+    <WixVariable Id="WixUIDialogBmp" Value="dialog.bmp" />
+    <WixVariable Id="WixUIBannerBmp" Value="banner.bmp" />
+    <ui:WixUI Id="WixUI_FeatureTree" />
+
+    <!-- "Start Claude Status now" on the Finish page. -->
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Start Claude Status now" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <Property Id="WixShellExecTarget" Value="[#ClaudeStatusExe]" />
+    <CustomAction Id="LaunchApplication" DllEntry="WixShellExec" Impersonate="yes" BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)" />
+    <UI>
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchApplication"
+               Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed" />
+    </UI>
+  </Package>
+</Wix>

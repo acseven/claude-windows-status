@@ -1,0 +1,400 @@
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Interop;
+using System.Windows.Media;
+using System.Windows.Threading;
+
+namespace ClaudeStatus;
+
+/// <summary>
+/// A borderless, always-on-top strip that sits on the taskbar next to the notification area.
+/// Windows 11 removed deskbands, so overlaying the taskbar is the supported-ish way to "be on the taskbar".
+/// Drag it horizontally to move it; click for details; right-click for the menu.
+/// </summary>
+public sealed class TaskbarWidget : Window
+{
+    readonly Settings _settings;
+    readonly UsageMonitor _monitor;
+    readonly Action<Point> _showMenu;
+    readonly Action<Point?> _showDetails;
+    readonly DispatcherTimer _placeTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+
+    readonly Row _session = new("5h");
+    readonly Row _weekly = new("7d");
+    readonly TextBlock _status = new() { FontSize = 11, VerticalAlignment = VerticalAlignment.Center };
+    readonly StackPanel _rows = new() { VerticalAlignment = VerticalAlignment.Center };
+    readonly StackPanel _compact = new() { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+    readonly System.Windows.Shapes.Ellipse _dot = new() { Width = 7, Height = 7, Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
+    readonly TextBlock _line = new() { FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
+
+    IntPtr _hwnd;
+    bool _visible;
+
+    /// <summary>Raised when the widget actually appears on or disappears from the taskbar.</summary>
+    public event Action<bool>? ShownChanged;
+
+    void SetShown(bool shown)
+    {
+        if (_visible == shown) return;
+        _visible = shown;
+        ShownChanged?.Invoke(shown);
+    }
+    bool _light;
+    List<(int Left, int Right)> _occupied = new();
+    (int TrayLeft, int Left, int Right, int Top) _scannedFor; // taskbar layout the last button scan was made for
+    long _lastScan = long.MinValue;
+    bool _scanning, _closed;
+    int _noFit; // consecutive checks in which the widget did not fit
+    WidgetStyle _style;
+    int _tick;
+
+    // Dragging state (physical pixels).
+    int _dragStartCursorX, _dragStartLeft;
+    bool _pressed, _dragging;
+
+    public TaskbarWidget(Settings settings, UsageMonitor monitor,
+        Action<Point> showMenu, Action<Point?> showDetails)
+    {
+        _settings = settings;
+        _monitor = monitor;
+        _showMenu = showMenu;
+        _showDetails = showDetails;
+
+        WindowStyle = WindowStyle.None;
+        AllowsTransparency = true;
+        Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)); // nearly transparent but hit-testable
+        ResizeMode = ResizeMode.NoResize;
+        ShowInTaskbar = false;
+        ShowActivated = false;
+        Topmost = true;
+        SizeToContent = SizeToContent.WidthAndHeight;
+        FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI");
+        Title = "Claude Status";
+
+        _rows.Children.Add(_session.Panel);
+        _rows.Children.Add(_weekly.Panel);
+        var root = new Grid { Margin = new Thickness(6, 2, 6, 2) };
+        root.Children.Add(_rows);
+        _compact.Children.Add(_dot);
+        _compact.Children.Add(_line);
+        root.Children.Add(_compact);
+        root.Children.Add(_status);
+        Content = root;
+
+        SourceInitialized += (_, _) =>
+        {
+            _hwnd = new WindowInteropHelper(this).Handle;
+            Native.MakeToolWindow(_hwnd);
+        };
+        SizeChanged += (_, _) => Place();
+
+        MouseLeftButtonDown += OnDown;
+        MouseMove += OnMove;
+        MouseLeftButtonUp += OnUp;
+        MouseRightButtonUp += (_, e) =>
+        {
+            var c = System.Windows.Forms.Cursor.Position;
+            _showMenu(new Point(c.X, c.Y));
+            e.Handled = true;
+        };
+
+        _monitor.Changed += Render;
+        _placeTimer.Tick += (_, _) => OnTick();
+        ApplyTheme(Theme.TaskbarIsLight());
+        Render();
+    }
+
+    public void Start()
+    {
+        Show();
+        SetShown(true);
+        Place();
+        _placeTimer.Start();
+
+        // Clicking the taskbar or a tray icon brings the taskbar to the front, covering the widget
+        // until the next timer tick (a visible flash). Re-raise as soon as the foreground changes,
+        // and once more just after, when the taskbar has finished re-ordering itself.
+        _onForeground = (_, _, _, _, _, _, _) =>
+        {
+            Place();
+            _replace.Stop();
+            _replace.Start();
+        };
+        _replace.Tick += (_, _) => { _replace.Stop(); Place(); };
+        _foregroundHook = Native.SetWinEventHook(Native.EVENT_SYSTEM_FOREGROUND, Native.EVENT_SYSTEM_FOREGROUND,
+            IntPtr.Zero, _onForeground, 0, 0, Native.WINEVENT_OUTOFCONTEXT);
+
+        // Tray icons and task buttons appear and move while apps start (at sign-in many at once). Follow
+        // the taskbar's own windows as they move instead of waiting for the next timer tick, so the
+        // widget does not sit on top of icons that just appeared. Throttled to one re-placement per
+        // _relayout interval.
+        _onLayout = (_, _, hwnd, idObject, _, _, _) =>
+        {
+            if (idObject != 0 /* OBJID_WINDOW */ || _relayout.IsEnabled || !Native.IsInShellTray(hwnd)) return;
+            _relayout.Start();
+        };
+        _relayout.Tick += (_, _) => { _relayout.Stop(); Place(); };
+        HookTaskbarLayout();
+
+        Closed += (_, _) =>
+        {
+            _closed = true;
+            if (_foregroundHook != IntPtr.Zero) Native.UnhookWinEvent(_foregroundHook);
+            if (_layoutHook != IntPtr.Zero) Native.UnhookWinEvent(_layoutHook);
+            _replace.Stop();
+            _relayout.Stop();
+            _placeTimer.Stop();
+        };
+    }
+
+    Native.WinEventProc? _onForeground, _onLayout; // kept in fields so the delegates are not collected while hooked
+    IntPtr _foregroundHook, _layoutHook;
+    uint _layoutPid;
+    readonly DispatcherTimer _replace = new() { Interval = TimeSpan.FromMilliseconds(150) };
+    readonly DispatcherTimer _relayout = new() { Interval = TimeSpan.FromMilliseconds(100) };
+
+    /// <summary>(Re-)hooks location changes in Explorer's process; Explorer can restart with a new id.</summary>
+    void HookTaskbarLayout()
+    {
+        var pid = Native.ShellTrayProcessId();
+        if (pid == _layoutPid || _onLayout is null) return;
+        if (_layoutHook != IntPtr.Zero) Native.UnhookWinEvent(_layoutHook);
+        _layoutHook = pid == 0 ? IntPtr.Zero : Native.SetWinEventHook(Native.EVENT_OBJECT_LOCATIONCHANGE,
+            Native.EVENT_OBJECT_LOCATIONCHANGE, IntPtr.Zero, _onLayout, pid, 0, Native.WINEVENT_OUTOFCONTEXT);
+        _layoutPid = _layoutHook == IntPtr.Zero ? 0 : pid;
+    }
+
+    void OnTick()
+    {
+        // Theme and countdowns change slowly; check every few seconds.
+        if (++_tick % 5 == 0)
+        {
+            var light = Theme.TaskbarIsLight();
+            if (light != _light) ApplyTheme(light);
+            HookTaskbarLayout();
+        }
+        if (_tick % 30 == 0 || _settings.EffectiveStyle != _style) Render();
+        Place();
+    }
+
+    void ApplyTheme(bool light)
+    {
+        _light = light;
+        var fg = new SolidColorBrush(light ? Color.FromRgb(0x1F, 0x1F, 0x1F) : Color.FromRgb(0xF3, 0xF3, 0xF3));
+        var track = new SolidColorBrush(light ? Color.FromArgb(0x40, 0, 0, 0) : Color.FromArgb(0x50, 0xFF, 0xFF, 0xFF));
+        Foreground = fg;
+        _status.Foreground = fg;
+        _line.Foreground = fg;
+        _session.SetColors(fg, track);
+        _weekly.SetColors(fg, track);
+    }
+
+    void Render()
+    {
+        _style = _settings.EffectiveStyle;
+        var snap = _monitor.Last;
+        if (snap is null)
+        {
+            _rows.Visibility = Visibility.Collapsed;
+            _compact.Visibility = Visibility.Collapsed;
+            _status.Visibility = Visibility.Visible;
+            _status.Text = _monitor.State switch
+            {
+                MonitorState.SignedOut => "Claude · sign in",
+                MonitorState.Loading => "Claude · …",
+                _ => "Claude · offline",
+            };
+            ToolTip = _monitor.Message;
+            return;
+        }
+
+        _status.Visibility = Visibility.Collapsed;
+        var compact = _style == WidgetStyle.Compact;
+        _rows.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+        _compact.Visibility = compact ? Visibility.Visible : Visibility.Collapsed;
+        _session.Set(snap.Session);
+        _weekly.Set(snap.Weekly);
+        var worst = Math.Max(snap.Session?.Percent ?? 0, snap.Weekly?.Percent ?? 0);
+        _dot.Fill = new SolidColorBrush(Theme.Level(worst));
+        _line.Text = $"5h {Pct(snap.Session)} · 7d {Pct(snap.Weekly)}";
+        ToolTip = _monitor.State == MonitorState.Error
+            ? $"Last update {snap.FetchedAt:t} – {_monitor.Message}"
+            : $"Updated {snap.FetchedAt:t}";
+        Opacity = _monitor.State == MonitorState.Error ? 0.6 : 1.0;
+    }
+
+    static string Pct(LimitWindow? w) => w is null ? "–" : $"{w.Percent:0}%";
+
+    (int Left, int Right)? FreeGap(Native.RECT taskbar, int trayLeft, double scale)
+    {
+        // Taskbar buttons move as apps open and close: re-scan every few seconds, and at once when the
+        // tray or the taskbar itself moved.
+        var layout = (trayLeft, taskbar.Left, taskbar.Right, taskbar.Top);
+        var age = Environment.TickCount64 - _lastScan;
+        if (layout != _scannedFor || age > 3000 || (_occupied.Count == 0 && age > 1000))
+            ScanButtons(taskbar, trayLeft, layout);
+        if (_occupied.Count == 0) return null;
+        var margin = (int)(8 * scale);
+        return (_occupied.Max(o => o.Right) + margin, trayLeft - margin);
+    }
+
+    /// <summary>
+    /// Finds the taskbar buttons on a worker thread: UI Automation calls into Explorer, which can take
+    /// seconds while it is busy (at sign-in), and must not block the widget, the tray menu or the
+    /// flyout. Places the widget again with the result. A scan that finds nothing (UI Automation busy
+    /// or failing) keeps the last good layout; there is always a Start button, so empty means "unknown".
+    /// </summary>
+    async void ScanButtons(Native.RECT taskbar, int trayLeft, (int, int, int, int) layout)
+    {
+        if (_scanning) return;
+        _scanning = true;
+        _lastScan = Environment.TickCount64;
+        _scannedFor = layout;
+        List<(int Left, int Right)> scan;
+        try { scan = await Task.Run(() => TaskbarLayout.OccupiedRanges(taskbar, trayLeft)); }
+        finally { _scanning = false; }
+        _lastScan = Environment.TickCount64;
+        if (_closed || scan.Count == 0) return;
+        _occupied = scan;
+        Place();
+    }
+
+    /// <summary>True when <paramref name="me"/> lies over the tray or over a known taskbar button.</summary>
+    bool CoversIcons(Native.RECT me, Native.RECT? tray) =>
+        (tray is { } t && me.Right > t.Left && me.Left < t.Right) ||
+        _occupied.Any(o => me.Left < o.Right && me.Right > o.Left);
+
+    /// <summary>Top-right corner in physical pixels, or null when hidden (flyouts anchor here).</summary>
+    public Point? Anchor => _visible && Native.GetWindowRect(_hwnd, out var r) ? new Point(r.Right, r.Top) : null;
+
+    public void ResetPosition()
+    {
+        _settings.WidgetRightOffset = null;
+        _settings.Save();
+        Place();
+    }
+
+    /// <summary>Keep the widget glued to the taskbar and above it (the taskbar re-takes the top when clicked).</summary>
+    void Place()
+    {
+        if (_hwnd == IntPtr.Zero || _closed) return;
+
+        var tb = Native.GetTaskbar();
+        var shouldShow = _settings.EffectiveShowWidget && tb is not null && !tb.AutoHide && !Native.IsForegroundFullscreen();
+        if (!shouldShow)
+        {
+            if (_visible) { Native.ShowWindow(_hwnd, Native.SW_HIDE); SetShown(false); }
+            return;
+        }
+
+        Native.GetWindowRect(_hwnd, out var me);
+        var b = tb!.Bounds;
+        var scale = Native.GetDpiForWindow(_hwnd) / 96.0;
+        int x, y;
+
+        // Only ever shown in the free gap between the last taskbar button and the tray; never on top of
+        // icons. No gap, a vertical taskbar, or unknown button positions → hidden (tray icons remain).
+        var gap = tb.Edge is Native.Edge.Bottom or Native.Edge.Top && tb.Tray is { } tray
+            ? FreeGap(b, tray.Left, scale)
+            : null;
+        if (gap is not { } g || g.Right - g.Left < me.Width)
+        {
+            // Only hide after two checks in a row say it does not fit, so one odd reading cannot
+            // make the widget blink off and on; but at once when it already lies over tray icons or
+            // taskbar buttons (icons appearing while apps start).
+            if (_visible && ++_noFit < 2 && !CoversIcons(me, tb.Tray)) return;
+            if (_visible) { Native.ShowWindow(_hwnd, Native.SW_HIDE); SetShown(false); }
+            return;
+        }
+        _noFit = 0;
+
+        var right = _settings.WidgetRightOffset is int off
+            ? Math.Clamp(b.Right - off, g.Left + me.Width, g.Right)
+            : g.Right;
+        x = right - me.Width;
+        y = b.Top + (b.Height - me.Height) / 2;
+
+        // Keep above the taskbar, but never above a menu or flyout that is open over the widget
+        // (tray menus, the hidden-icons tray): then only move, and leave the z-order alone.
+        var covered = Native.IsCoveredByOtherTopmost(_hwnd, new Native.RECT { Left = x, Top = y, Right = x + me.Width, Bottom = y + me.Height });
+        Native.SetWindowPos(_hwnd, covered ? IntPtr.Zero : Native.HWND_TOPMOST, x, y, 0, 0,
+            Native.SWP_NOSIZE | Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW | (covered ? Native.SWP_NOZORDER : 0));
+        SetShown(true);
+    }
+
+    void OnDown(object sender, MouseButtonEventArgs e)
+    {
+        Native.GetWindowRect(_hwnd, out var me);
+        _dragStartCursorX = System.Windows.Forms.Cursor.Position.X;
+        _dragStartLeft = me.Left;
+        _pressed = true;
+        _dragging = false;
+        CaptureMouse();
+    }
+
+    void OnMove(object sender, MouseEventArgs e)
+    {
+        if (!_pressed) return;
+        var dx = System.Windows.Forms.Cursor.Position.X - _dragStartCursorX;
+        if (!_dragging && Math.Abs(dx) < 5) return;
+        _dragging = true;
+
+        var tb = Native.GetTaskbar();
+        if (tb is null || tb.Edge is Native.Edge.Left or Native.Edge.Right) return;
+        Native.GetWindowRect(_hwnd, out var me);
+        _settings.WidgetRightOffset = Math.Max(0, tb.Bounds.Right - (_dragStartLeft + dx + me.Width));
+        Place();
+    }
+
+    void OnUp(object sender, MouseButtonEventArgs e)
+    {
+        ReleaseMouseCapture();
+        if (!_pressed) return;
+        _pressed = false;
+        if (_dragging) _settings.Save();
+        else
+        {
+            Native.GetWindowRect(_hwnd, out var me);
+            _showDetails(new Point(me.Right, me.Top));
+        }
+    }
+
+    sealed class Row
+    {
+        const double TrackWidth = 44;
+
+        public StackPanel Panel { get; } = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 1, 0, 1) };
+        readonly TextBlock _label;
+        readonly Border _track = new() { Width = TrackWidth, Height = 5, CornerRadius = new CornerRadius(2.5), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 4, 0) };
+        readonly Border _fill = new() { Height = 5, CornerRadius = new CornerRadius(2.5), HorizontalAlignment = HorizontalAlignment.Left };
+        readonly TextBlock _pct = new() { FontSize = 11, Width = 30, TextAlignment = TextAlignment.Right, FontWeight = FontWeights.SemiBold };
+        readonly TextBlock _reset = new() { FontSize = 10, Width = 44, Margin = new Thickness(5, 0, 0, 0), Opacity = 0.75, VerticalAlignment = VerticalAlignment.Center };
+
+        public Row(string label)
+        {
+            _label = new TextBlock { Text = label, FontSize = 10, Width = 16, Opacity = 0.75, VerticalAlignment = VerticalAlignment.Center };
+            _track.Child = _fill;
+            Panel.Children.Add(_label);
+            Panel.Children.Add(_track);
+            Panel.Children.Add(_pct);
+            Panel.Children.Add(_reset);
+        }
+
+        public void SetColors(Brush fg, Brush track)
+        {
+            _label.Foreground = _pct.Foreground = _reset.Foreground = fg;
+            _track.Background = track;
+        }
+
+        public void Set(LimitWindow? w)
+        {
+            Panel.Visibility = w is null ? Visibility.Collapsed : Visibility.Visible;
+            if (w is null) return;
+            _fill.Width = TrackWidth * w.Percent / 100.0;
+            _fill.Background = new SolidColorBrush(Theme.Level(w.Percent));
+            _pct.Text = $"{w.Percent:0}%";
+            _reset.Text = Theme.Countdown(w.ResetsAt);
+        }
+    }
+}

@@ -1,0 +1,361 @@
+using System.Diagnostics;
+using System.Windows;
+
+namespace ClaudeStatus;
+
+static class Program
+{
+    const string ShowSignal = @"Local\ClaudeStatus.Show";
+    const string QuitSignal = @"Local\ClaudeStatus.Quit";         // --quit
+    const string TakeoverSignal = @"Local\ClaudeStatus.Takeover"; // a different version/location replaces this copy
+
+    [STAThread]
+    static void Main(string[] args)
+    {
+        var options = Options.Parse(args);
+        if (options.SelfTestFile is { } selfTest)
+        {
+            RunNetworkSelfTest(selfTest);
+            return;
+        }
+        using var mutex = new Mutex(true, @"Local\ClaudeStatus.SingleInstance", out var first);
+        if (!first)
+        {
+            if (options.Quit)
+            {
+                Signal(QuitSignal);
+                return;
+            }
+            if (!RunningCopyDiffers())
+            {
+                // The same copy started again (e.g. from the Start menu): show its details flyout.
+                Signal(ShowSignal);
+                return;
+            }
+            // A different version or location (an upgrade, the portable exe next to the installed
+            // one): the running copy quits and this one takes over. That works even when the
+            // DisableExit policy is set (the new copy is under the same policy). Copies from before
+            // the takeover signal only know the quit signal, so both are sent.
+            Signal(TakeoverSignal);
+            Signal(QuitSignal);
+            try { first = mutex.WaitOne(TimeSpan.FromSeconds(15)); }
+            catch (AbandonedMutexException) { first = true; }
+            if (!first)
+            {
+                Signal(ShowSignal);
+                return;
+            }
+        }
+        if (options.Quit) return;
+
+        using var show = new EventWaitHandle(false, EventResetMode.AutoReset, ShowSignal);
+        using var quit = new EventWaitHandle(false, EventResetMode.AutoReset, QuitSignal);
+        using var takeover = new EventWaitHandle(false, EventResetMode.AutoReset, TakeoverSignal);
+
+        System.Windows.Forms.Application.EnableVisualStyles();
+        var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+        app.Startup += (_, _) =>
+        {
+            var shell = new Shell(app, options);
+            shell.Start();
+            var listener = new Thread(() =>
+            {
+                var handles = new WaitHandle[] { show, quit, takeover };
+                while (true)
+                {
+                    switch (WaitHandle.WaitAny(handles))
+                    {
+                        case 0: app.Dispatcher.BeginInvoke(shell.ShowFromSignal); break;
+                        case 1: app.Dispatcher.BeginInvoke(shell.QuitRequested); break; // ignored under DisableExit
+                        default: app.Dispatcher.BeginInvoke(shell.Exit); return;
+                    }
+                }
+            }) { IsBackground = true, Name = "single-instance" };
+            listener.Start();
+        };
+        app.Run();
+    }
+
+    /// <summary>
+    /// --selftest-network=FILE: one unauthenticated request through the embedded browser, result written
+    /// to FILE. A JSON 401/403 means claude.ai answered (Cloudflare let the browser through); an HTML
+    /// 403 means Cloudflare blocked it. Used by CI; touches no settings or accounts.
+    /// </summary>
+    static void RunNetworkSelfTest(string file)
+    {
+        var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+        app.Startup += async (_, _) =>
+        {
+            using var fetcher = new BrowserFetcher();
+            var log = new System.Text.StringBuilder();
+            for (var attempt = 1; attempt <= 3; attempt++)
+            {
+                try
+                {
+                    var (status, body) = await fetcher.GetAsync("/api/organizations", "selftest-invalid", CancellationToken.None);
+                    var kind = body.TrimStart().StartsWith('{') || body.TrimStart().StartsWith('[') ? "json" : "html";
+                    log.AppendLine($"attempt {attempt}: status={status} kind={kind} body={body[..Math.Min(body.Length, 200)].ReplaceLineEndings(" ")}");
+                    if (kind == "json") break;
+                    fetcher.RenewClearance();
+                }
+                catch (Exception ex)
+                {
+                    log.AppendLine($"attempt {attempt}: error={ex.GetType().Name}: {ex.Message}");
+                }
+                try { log.AppendLine("  page: " + await fetcher.DescribePageAsync()); } catch { }
+            }
+            System.IO.File.WriteAllText(file, log.ToString());
+            app.Shutdown();
+        };
+        app.Run();
+    }
+
+    /// <summary>True when the copy already running in this session is another file or version.</summary>
+    static bool RunningCopyDiffers()
+    {
+        var me = Environment.ProcessPath ?? "";
+        var myVersion = FileVersionInfo.GetVersionInfo(me).FileVersion;
+        using var current = Process.GetCurrentProcess();
+        foreach (var p in Process.GetProcesses())
+        {
+            using (p)
+            {
+                try
+                {
+                    if (p.Id == current.Id || p.SessionId != current.SessionId) continue;
+                    var path = p.MainModule?.FileName;
+                    if (path is null) continue;
+                    var info = FileVersionInfo.GetVersionInfo(path);
+                    if (info.ProductName != "Claude Status") continue;
+                    return !string.Equals(path, me, StringComparison.OrdinalIgnoreCase) || info.FileVersion != myVersion;
+                }
+                catch
+                {
+                    // Processes we may not inspect (other users, protected) are not ours.
+                }
+            }
+        }
+        return false;
+    }
+
+    static void Signal(string name)
+    {
+        try
+        {
+            using var e = EventWaitHandle.OpenExisting(name);
+            e.Set();
+        }
+        catch (WaitHandleCannotBeOpenedException)
+        {
+            // The other copy is starting up or shutting down; nothing to do.
+        }
+    }
+}
+
+/// <summary>
+/// Command line: --demo[=alert] shows sample data without signing in, --style=bars|compact|icon
+/// overrides the display for this run, --open-details opens the flyout (used for screenshots),
+/// --open-stats opens it on the Stats tab, --quit closes a running copy.
+/// </summary>
+sealed record Options(bool Demo, bool DemoAlert, WidgetStyle? Style, bool OpenDetails, bool Quit, string? SelfTestFile, bool OpenStats = false)
+{
+    public static Options Parse(string[] args)
+    {
+        bool Has(string a) => args.Any(x => x.Equals(a, StringComparison.OrdinalIgnoreCase));
+        var style = args.FirstOrDefault(a => a.StartsWith("--style=", StringComparison.OrdinalIgnoreCase))?[8..].ToLowerInvariant() switch
+        {
+            "bars" => WidgetStyle.Bars,
+            "compact" => WidgetStyle.Compact,
+            "icon" => WidgetStyle.IconOnly,
+            _ => (WidgetStyle?)null,
+        };
+        var selfTest = args.FirstOrDefault(a => a.StartsWith("--selftest-network=", StringComparison.OrdinalIgnoreCase))?["--selftest-network=".Length..];
+        return new Options(Has("--demo") || Has("--demo=alert"), Has("--demo=alert"), style,
+            Has("--open-details") || Has("--open-stats"), Has("--quit"), selfTest, Has("--open-stats"));
+    }
+}
+
+/// <summary>Wires the monitor, tray icon, taskbar widget and notifications together.</summary>
+sealed class Shell
+{
+    readonly Application _app;
+    readonly Options _options;
+    readonly Settings _settings;
+    readonly UsageMonitor _monitor;
+    readonly TrayController _tray;
+    readonly TaskbarWidget _widget;
+    readonly Notifier _notifier;
+    DetailsWindow? _details;
+    HistoryStore? _historyStore;
+    string? _historyScope;
+    bool _openStatsOnce;
+    bool _signingIn;
+    bool _exiting;
+    long _sessionEndingTick = long.MinValue; // when Windows last asked this session to end
+
+    public Shell(Application app, Options options)
+    {
+        _app = app;
+        _options = options;
+        // Demo runs never touch the user's saved settings or session.
+        _settings = options.Demo ? new Settings { InMemoryOnly = true } : Settings.Load();
+        if (options.Style is WidgetStyle.IconOnly) _settings.ShowTaskbarWidget = false;
+        else if (options.Style is { } style) _settings.WidgetStyle = style;
+        _monitor = new UsageMonitor(_settings);
+        _tray = new TrayController(_settings, _monitor, SignIn, ShowDetails, () => _widget!.ResetPosition(), QuitRequested);
+        // Sign-out, shutdown and restart must never be blocked, whatever the policy says.
+        // Windows gives no "cancelled" event when another program vetoes the shutdown, so the flag only
+        // counts for a short while instead of staying set for the rest of the run.
+        _app.SessionEnding += (_, _) => _sessionEndingTick = Environment.TickCount64;
+        _widget = new TaskbarWidget(_settings, _monitor, _tray.ShowMenuAt, ShowDetails);
+        _widget.ShownChanged += _tray.SetWidgetShown;
+        // The installer, Windows and "taskkill" (without /f) ask the app to close with WM_CLOSE, and
+        // which window gets it depends on the sender. taskkill posts it only to unowned top-level
+        // windows, and WPF gives every ShowInTaskbar=false window (the widget, the browser host) a
+        // hidden owner window that ignores WM_CLOSE: so a posted WM_CLOSE is caught in the message
+        // loop, whichever of our windows it is for. WM_CLOSE sent straight to the widget or the
+        // browser host goes through their Closing events. All of them end up in OnCloseRequest.
+        System.Windows.Interop.ComponentDispatcher.ThreadFilterMessage += OnThreadMessage;
+        _widget.Closing += (_, e) =>
+        {
+            if (_exiting) return;
+            e.Cancel = true;
+            OnCloseRequest();
+        };
+        BrowserFetcher.CloseRequested += OnCloseRequest;
+        _notifier = new Notifier(_settings, _tray.Notify);
+        _monitor.AccountRefused += message => _tray.Notify("Claude account not allowed", message);
+
+        _monitor.Changed += () =>
+        {
+            if (_monitor.State == MonitorState.Ok && _monitor.Last is { } s && !_options.Demo) History()?.Record(s);
+            if (_monitor.State == MonitorState.Ok && _monitor.Last is { } snap) _notifier.Check(snap);
+        };
+    }
+
+    public void Start()
+    {
+        _widget.Start();
+        if (_options.Demo)
+        {
+            _monitor.LoadDemo(_options.DemoAlert);
+            _openStatsOnce = _options.OpenStats;
+            if (_options.OpenDetails) ShowDetails(_widget.Anchor);
+            return;
+        }
+        _monitor.Start();
+        History(); // with the "Turn off usage history" policy set, deletes any history left on disk
+        _openStatsOnce = _options.OpenStats;
+        if (_options.OpenDetails) ShowDetails(_widget.Anchor);
+        if (string.IsNullOrEmpty(_settings.SessionKey))
+            _tray.Notify("Claude Status", "Click here or the tray icon to sign in to your Claude account.");
+    }
+
+    /// <summary>Signs in a Claude account in a clean browser profile and makes it the active one.</summary>
+    void SignIn()
+    {
+        if (_signingIn) return;
+        _signingIn = true;
+        try
+        {
+            var login = new LoginWindow();
+            if (login.ShowDialog() == true && !string.IsNullOrEmpty(login.SessionKey))
+                _monitor.AddAccount(login.SessionKey);
+        }
+        finally
+        {
+            _signingIn = false;
+        }
+    }
+
+    void ShowDetails(Point? anchor)
+    {
+        if (_details is not null) { _details.Close(); return; }
+        if (_monitor.State == MonitorState.SignedOut && _monitor.Last is null) { SignIn(); return; }
+
+        var p = anchor ?? new Point(System.Windows.Forms.Cursor.Position.X, System.Windows.Forms.Cursor.Position.Y);
+        _details = new DetailsWindow(_monitor, p, _tray.ShowMenuAt, QuitRequested, History, _openStatsOnce);
+        _openStatsOnce = false;
+        _details.Closed += (_, _) => _details = null;
+        _details.Show();
+    }
+
+    /// <summary>Started again while running: show the flyout (or sign-in) where it can be seen.</summary>
+    public void ShowFromSignal()
+    {
+        if (_details is not null) return;
+        ShowDetails(_widget.Anchor);
+    }
+
+    /// <summary>
+    /// History of the active account + organisation, or null when usage history is off (by the user
+    /// or by policy). With the policy set, any history on disk is deleted.
+    /// </summary>
+    HistoryStore? History()
+    {
+        if (!_settings.EffectiveHistory)
+        {
+            _historyStore = null;
+            _historyScope = null;
+            if (!_options.Demo && Policy.Current.DisableUsageHistory && System.IO.Directory.Exists(HistoryStore.Folder))
+                HistoryStore.DeleteAll();
+            return null;
+        }
+        if (_monitor.Last is not { } snap) return null;
+        if (_options.Demo) return _historyStore ??= HistoryStore.Demo(snap);
+        // Reload when history files were deleted meanwhile (e.g. turned off and on again), so the
+        // copy in memory never writes deleted history back.
+        if (_historyScope != snap.Scope || _historyStore?.IsStale == true)
+        {
+            _historyStore = HistoryStore.ForScope(snap.Scope);
+            _historyScope = snap.Scope;
+        }
+        return _historyStore;
+    }
+
+    /// <summary>The user (menu, flyout button) or <c>--quit</c> asks to quit: not allowed under DisableExit.</summary>
+    bool SessionEndingNow => _sessionEndingTick != long.MinValue && Environment.TickCount64 - _sessionEndingTick < 30_000;
+
+    /// <summary>
+    /// A WM_CLOSE posted to one of our unowned top-level windows is a request to close the app (this is
+    /// what "taskkill" without /f does). Our own windows close with a sent WM_CLOSE (Close(), Alt+F4),
+    /// which never passes through here, and owned windows (dialogs, the flyout) are left alone.
+    /// </summary>
+    void OnThreadMessage(ref System.Windows.Interop.MSG msg, ref bool handled)
+    {
+        if (handled || msg.message != Native.WM_CLOSE || _exiting || !Native.IsUnownedTopLevel(msg.hwnd)) return;
+        handled = true; // never let it reach (and possibly destroy) a hidden helper window
+        OnCloseRequest();
+    }
+
+    /// <summary>A close request from outside (WM_CLOSE to one of the app's windows).</summary>
+    void OnCloseRequest()
+    {
+        if (_exiting) return;
+        // DisableExit: a plain close request (e.g. "taskkill" without /f) is ignored. Sign-out/shutdown
+        // still closes the app, and the installer ends the process itself (util:CloseApplication
+        // terminates it after its timeout).
+        if (Policy.Current.DisableExit && !SessionEndingNow) return;
+        // Not from inside the sender's Closing event: windows cannot be closed while they are closing.
+        _app.Dispatcher.BeginInvoke(new Action(Exit));
+    }
+
+    public void QuitRequested()
+    {
+        if (Policy.Current.DisableExit) return;
+        Exit();
+    }
+
+    public void Exit()
+    {
+        if (_exiting) return;
+        _exiting = true;
+        BrowserFetcher.CloseRequested -= OnCloseRequest;
+        System.Windows.Interop.ComponentDispatcher.ThreadFilterMessage -= OnThreadMessage;
+        _details?.Close();
+        _widget.Close();
+        _tray.Dispose();
+        _monitor.Dispose();
+        _app.Shutdown();
+    }
+}
