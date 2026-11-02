@@ -107,6 +107,7 @@ public sealed class TrayController : IDisposable
         Menu.Items.Add(_account);
         Menu.Items.Add(_organization);
         Menu.Items.Add(new WinForms.ToolStripSeparator());
+        Menu.Items.Add($"About Claude Status ({AboutWindow.Version})", null, (_, _) => AboutWindow.ShowSingle());
         _quit.Click += (_, _) => _exit();
         Menu.Items.Add(_quit);
         Menu.Opening += (_, _) => SyncMenu();

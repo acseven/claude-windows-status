@@ -29,4 +29,8 @@
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
   </ItemGroup>
 
+  <ItemGroup Condition="'$(RepositoryUrl)' != ''">
+    <!-- Set by CI from the repository it builds; shown in the About window. -->
+    <AssemblyMetadata Include="RepositoryUrl" Value="$(RepositoryUrl)" />
+  </ItemGroup>
 </Project>

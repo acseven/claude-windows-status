@@ -155,9 +155,9 @@ static class Program
 /// <summary>
 /// Command line: --demo[=alert] shows sample data without signing in, --style=bars|compact|icon
 /// overrides the display for this run, --open-details opens the flyout (used for screenshots),
-/// --open-stats opens it on the Stats tab, --quit closes a running copy.
+/// --open-stats opens it on the Stats tab, --open-about opens the About window, --quit closes a running copy.
 /// </summary>
-sealed record Options(bool Demo, bool DemoAlert, WidgetStyle? Style, bool OpenDetails, bool Quit, string? SelfTestFile, bool OpenStats = false)
+sealed record Options(bool Demo, bool DemoAlert, WidgetStyle? Style, bool OpenDetails, bool Quit, string? SelfTestFile, bool OpenStats = false, bool OpenAbout = false)
 {
     public static Options Parse(string[] args)
     {
@@ -171,7 +171,7 @@ sealed record Options(bool Demo, bool DemoAlert, WidgetStyle? Style, bool OpenDe
         };
         var selfTest = args.FirstOrDefault(a => a.StartsWith("--selftest-network=", StringComparison.OrdinalIgnoreCase))?["--selftest-network=".Length..];
         return new Options(Has("--demo") || Has("--demo=alert"), Has("--demo=alert"), style,
-            Has("--open-details") || Has("--open-stats"), Has("--quit"), selfTest, Has("--open-stats"));
+            Has("--open-details") || Has("--open-stats"), Has("--quit"), selfTest, Has("--open-stats"), Has("--open-about"));
     }
 }
 
@@ -240,12 +240,14 @@ sealed class Shell
             _monitor.LoadDemo(_options.DemoAlert);
             _openStatsOnce = _options.OpenStats;
             if (_options.OpenDetails) ShowDetails(_widget.Anchor);
+            if (_options.OpenAbout) AboutWindow.ShowSingle();
             return;
         }
         _monitor.Start();
         History(); // with the "Turn off usage history" policy set, deletes any history left on disk
         _openStatsOnce = _options.OpenStats;
         if (_options.OpenDetails) ShowDetails(_widget.Anchor);
+        if (_options.OpenAbout) AboutWindow.ShowSingle();
         if (string.IsNullOrEmpty(_settings.SessionKey))
             _tray.Notify("Claude Status", "Click here or the tray icon to sign in to your Claude account.");
     }

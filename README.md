@@ -280,6 +280,7 @@ Command-line switches, useful for testing:
 | `--demo` / `--demo=alert`       | Sample data, no sign-in, nothing saved         |
 | `--style=bars\|compact\|icon`   | Display style for this run                     |
 | `--open-details` / `--open-stats` | Open the details flyout (Now / Stats tab) at start |
+| `--open-about`                 | Open the About window at start                 |
 | `--quit`                        | Close the running copy (ignored under the `DisableExit` policy) |
 | `--selftest-network=FILE`       | One test request through the embedded browser; result in FILE |
 
