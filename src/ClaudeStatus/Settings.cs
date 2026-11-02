@@ -39,8 +39,11 @@ public sealed class Settings
 
     public int RefreshMinutes { get; set; } = 2;
     /// <summary>Layout of the taskbar widget (Bars or Compact; IconOnly is the pre-2026.10.6 "widget off").</summary>
-    public WidgetStyle WidgetStyle { get; set; } = WidgetStyle.Bars;
-    public bool ShowTaskbarWidget { get; set; } = true;
+    // Changing either in the menu ends the --style= override, so the choice shows at once.
+    public WidgetStyle WidgetStyle { get => _widgetStyle; set { _widgetStyle = value; RunStyle = null; } }
+    WidgetStyle _widgetStyle = WidgetStyle.Bars;
+    public bool ShowTaskbarWidget { get => _showWidget; set { _showWidget = value; RunStyle = null; } }
+    bool _showWidget = true;
     public bool ShowSessionTrayIcon { get; set; } = true;
     public bool ShowWeeklyTrayIcon { get; set; } = true;
     public bool NotificationsEnabled { get; set; } = true;
@@ -99,11 +102,12 @@ public sealed class Settings
     }
 
     /// <summary>Removes saved accounts (other than <paramref name="keep"/>) whose e-mail policy refuses.</summary>
-    public int RemoveDisallowed(Policy policy, SavedAccount? keep)
+    public IReadOnlyList<SavedAccount> RemoveDisallowed(Policy policy, SavedAccount? keep)
     {
-        var refused = Accounts.Where(a => a != keep && !policy.AllowsEmail(a.Email)).ToList();
+        // Email == null: never resolved (e.g. a transient lookup error); checked when it becomes active.
+        var refused = Accounts.Where(a => a != keep && a.Email is not null && !policy.AllowsEmail(a.Email)).ToList();
         foreach (var a in refused) Remove(a);
-        return refused.Count;
+        return refused;
     }
 
     internal static string Protect(string value) =>
@@ -126,14 +130,17 @@ public sealed class Settings
     /// <summary>Widget layout in effect: Bars or Compact.</summary>
     [JsonIgnore] public WidgetStyle EffectiveStyle =>
         Policy.Current.WidgetStyle is WidgetStyle.Bars or WidgetStyle.Compact ? Policy.Current.WidgetStyle.Value
-        : WidgetStyle == WidgetStyle.Compact ? WidgetStyle.Compact : WidgetStyle.Bars;
+        : (RunStyle ?? WidgetStyle) == WidgetStyle.Compact ? WidgetStyle.Compact : WidgetStyle.Bars;
+
+    /// <summary>--style= override for this run only; never saved, and policy still wins over it.</summary>
+    [JsonIgnore] public WidgetStyle? RunStyle { get; set; }
 
     /// <summary>Policy "tray icons only" hides the widget; policy Bars/Compact forces it on.</summary>
     [JsonIgnore] public bool EffectiveShowWidget => Policy.Current.WidgetStyle switch
     {
         WidgetStyle.IconOnly => false,
         not null => true,
-        null => ShowTaskbarWidget,
+        null => RunStyle == WidgetStyle.IconOnly ? false : ShowTaskbarWidget,
     };
     [JsonIgnore] public int EffectiveRefreshMinutes => Policy.Current.RefreshMinutes ?? Math.Clamp(RefreshMinutes, 1, 60);
     /// <summary>Policy "Turn off usage history" wins over the user's choice.</summary>
@@ -144,11 +151,24 @@ public sealed class Settings
 
     public static Settings Load()
     {
+        if (!File.Exists(FilePath)) return new Settings();
+        string? text = null;
+        // A virus scanner or another sign-in task may hold the file for a moment: retry before giving up.
+        for (var attempt = 0; attempt < 5 && text is null; attempt++)
+        {
+            try { text = File.ReadAllText(FilePath); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                System.Diagnostics.Trace.WriteLine($"Settings read failed: {e.Message}");
+                Thread.Sleep(200);
+            }
+        }
+        // Still unreadable: work in memory and never overwrite the real file, so no saved account is lost.
+        if (text is null) return new Settings { InMemoryOnly = true };
         try
         {
-            if (File.Exists(FilePath))
             {
-                var s = JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath), JsonOptions) ?? new Settings();
+                var s = JsonSerializer.Deserialize<Settings>(text, JsonOptions) ?? new Settings();
                 if (s.WidgetStyle == WidgetStyle.IconOnly)
                 {
                     s.ShowTaskbarWidget = false;
@@ -164,9 +184,11 @@ public sealed class Settings
                 return s;
             }
         }
-        catch
+        catch (JsonException)
         {
-            // Corrupt settings: start fresh.
+            // Really corrupt: start fresh, but keep the bad file so it is not lost when we save.
+            try { File.Copy(FilePath, FilePath + ".corrupt", overwrite: true); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
         }
         return new Settings();
     }
@@ -177,9 +199,18 @@ public sealed class Settings
     public void Save()
     {
         if (InMemoryOnly) return;
-        Directory.CreateDirectory(Folder);
         var tmp = FilePath + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(this, JsonOptions));
-        File.Move(tmp, FilePath, overwrite: true);
+        try
+        {
+            Directory.CreateDirectory(Folder);
+            File.WriteAllText(tmp, JsonSerializer.Serialize(this, JsonOptions)); // temp file + move: never a half-written file
+            File.Move(tmp, FilePath, overwrite: true);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // Disk full or file locked: keep running with the settings in memory.
+            System.Diagnostics.Trace.WriteLine($"Settings save failed: {e.Message}");
+            try { File.Delete(tmp); } catch { }
+        }
     }
 }

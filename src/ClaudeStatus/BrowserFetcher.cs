@@ -27,6 +27,7 @@ public sealed class BrowserFetcher : IDisposable
     WebView2? _web;
     Task? _ready;
     bool _disposed;
+    bool _closingHost; // our own close of the host window (failed start-up), not an outside request
     bool _reload;
 
     /// <summary>
@@ -51,7 +52,15 @@ public sealed class BrowserFetcher : IDisposable
         var cookies = default(CoreWebView2CookieManager);
         try
         {
-            await (_ready ??= InitAsync());
+            try
+            {
+                await (_ready ??= InitAsync());
+            }
+            catch
+            {
+                _ready = null; // retry on the next request (e.g. the WebView2 runtime got installed)
+                throw;
+            }
             var core = _web!.CoreWebView2;
             if (_reload)
             {
@@ -101,7 +110,24 @@ public sealed class BrowserFetcher : IDisposable
         }
         finally
         {
+            // Delete every claude.ai cookie the response may have set (lastActiveOrg, device ids, ...), not
+            // just the session, so no account state reaches the next account's request. Only Cloudflare's
+            // cookies stay: they identify the browser, not the account, and keep the check from repeating.
+            // The session goes first, on its own, so it is removed even if the sweep below fails.
             try { cookies?.DeleteCookies("sessionKey", Origin); } catch { /* host already gone */ }
+            try
+            {
+                if (cookies is not null)
+                    foreach (var c in await cookies.GetCookiesAsync(Origin))
+                    {
+                        var n = c.Name;
+                        if (n == "cf_clearance" || n == "_cfuvid" || n.StartsWith("__cf", StringComparison.Ordinal) ||
+                            n.StartsWith("cf_", StringComparison.Ordinal))
+                            continue;
+                        try { cookies.DeleteCookie(c); } catch { /* host already gone */ }
+                    }
+            }
+            catch { /* host already gone */ }
             _gate.Release();
         }
     }
@@ -129,21 +155,37 @@ public sealed class BrowserFetcher : IDisposable
         // goes to WPF's hidden owner window instead and is caught by Shell.OnThreadMessage.)
         _host.Closing += (_, e) =>
         {
-            if (_disposed) return;
+            if (_disposed || _closingHost) return;
             e.Cancel = true;
             CloseRequested?.Invoke();
         };
         _host.Show();
 
-        var options = new CoreWebView2EnvironmentOptions { AllowSingleSignOnUsingOSPrimaryAccount = true };
-        var env = await CoreWebView2Environment.CreateAsync(null, Path.Combine(Settings.Folder, "WebView2"), options);
-        await _web.EnsureCoreWebView2Async(env);
-        var core = _web.CoreWebView2;
-        core.Settings.AreDevToolsEnabled = false;
-        core.Settings.IsStatusBarEnabled = false;
-        core.WebMessageReceived += OnMessage;
+        try
+        {
+            var options = new CoreWebView2EnvironmentOptions { AllowSingleSignOnUsingOSPrimaryAccount = true };
+            var env = await CoreWebView2Environment.CreateAsync(null, Path.Combine(Settings.Folder, "WebView2"), options);
+            await _web.EnsureCoreWebView2Async(env);
+            var core = _web.CoreWebView2;
+            core.Settings.AreDevToolsEnabled = false;
+            core.Settings.IsStatusBarEnabled = false;
+            core.WebMessageReceived += OnMessage;
 
-        await NavigateAsync(core);
+            await NavigateAsync(core);
+        }
+        catch
+        {
+            // Do not keep a dead browser and its off-screen window around; the next request starts afresh.
+            var web = _web;
+            var host = _host;
+            _web = null;
+            _host = null;
+            _closingHost = true;
+            try { web?.Dispose(); } catch { }
+            try { host?.Close(); } catch { }
+            _closingHost = false;
+            throw;
+        }
     }
 
     /// <summary>Loads a same-origin page to run fetch() from; passing Cloudflare here sets its clearance cookies.</summary>

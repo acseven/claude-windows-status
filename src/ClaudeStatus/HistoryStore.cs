@@ -175,6 +175,9 @@ public sealed class HistoryStore
         try { if (_path is not null && File.Exists(_path)) File.Delete(_path); } catch { }
     }
 
+    /// <summary>Reset times a few minutes apart are the same window (the server value can shift slightly between polls).</summary>
+    public static bool SameReset(long a, long b) => a == b || (a != 0 && b != 0 && Math.Abs(a - b) <= 300);
+
     public void Record(UsageSnapshot snap)
     {
         var now = snap.FetchedAt;
@@ -188,7 +191,7 @@ public sealed class HistoryStore
             if (w is null) continue;
             var reset = w.ResetsAt?.ToUnixTimeSeconds() ?? 0;
             var prev = _data.Samples.LastOrDefault(s => s.W == key);
-            var sameWindow = prev is not null && prev.R == reset;
+            var sameWindow = prev is not null && SameReset(prev.R, reset);
             var t = now.ToUnixTimeSeconds();
 
             if (key == Session)
@@ -201,7 +204,7 @@ public sealed class HistoryStore
                 // A new window that started after the last value seen (seen within the longest refresh
                 // interval, so the app was running): all of its usage is new.
                 var added = seen is not { } s0 ? 0
-                    : s0.R == reset ? w.Percent - s0.P
+                    : SameReset(s0.R, reset) ? w.Percent - s0.P
                     : reset != 0 && t - s0.T <= 65 * 60 &&
                       reset - (long)Insights.Length(Session)!.Value.TotalSeconds >= s0.T ? w.Percent
                     : 0;
@@ -211,7 +214,7 @@ public sealed class HistoryStore
                     changed = true;
                 }
                 _seen[key] = (reset, w.Percent, t);
-                if (w.Percent >= 100 && reset != 0 && !_data.Days.Any(d => d.SessionLimitHits.Contains(reset)))
+                if (w.Percent >= 100 && reset != 0 && !_data.Days.Any(d => d.SessionLimitHits.Any(h => SameReset(h, reset))))
                 {
                     day.SessionLimitHits.Add(reset);
                     changed = true;
@@ -281,7 +284,7 @@ public sealed class HistoryStore
     public IReadOnlyList<Sample> Window(string key, DateTimeOffset? resetsAt)
     {
         var reset = resetsAt?.ToUnixTimeSeconds() ?? 0;
-        return _data.Samples.Where(s => s.W == key && s.R == reset).OrderBy(s => s.T).ToList();
+        return _data.Samples.Where(s => s.W == key && SameReset(s.R, reset)).OrderBy(s => s.T).ToList();
     }
 
     public Day? DayOf(DateOnly date) =>

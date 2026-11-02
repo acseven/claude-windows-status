@@ -35,7 +35,7 @@ public sealed class Notifier
             // Only the highest crossed level is shown; lower ones are marked as done too.
             var crossed = levels.Where(l => w.Percent >= l).ToArray();
             if (crossed.Length == 0) continue;
-            var fresh = crossed.Where(l => !_settings.Notified.TryGetValue(Id(snap, key, l), out var seen) || seen != window).ToArray();
+            var fresh = crossed.Where(l => !_settings.Notified.TryGetValue(Id(snap, key, l), out var seen) || !SameWindow(seen, window)).ToArray();
             if (fresh.Length == 0) continue;
 
             foreach (var l in crossed) _settings.Notified[Id(snap, key, l)] = window;
@@ -45,6 +45,15 @@ public sealed class Notifier
                 _show(Title(key, fresh.Max()), Body(w, fresh.Max()));
         }
         if (changed) _settings.Save();
+    }
+
+    /// <summary>Stored and current reset times within a few minutes are one window (the server value can shift between polls).</summary>
+    static bool SameWindow(string stored, string current)
+    {
+        if (stored == current) return true;
+        return DateTimeOffset.TryParse(stored, null, System.Globalization.DateTimeStyles.RoundtripKind, out var a)
+            && DateTimeOffset.TryParse(current, null, System.Globalization.DateTimeStyles.RoundtripKind, out var b)
+            && Math.Abs((a - b).TotalSeconds) <= 300;
     }
 
     static string Id(UsageSnapshot snap, string window, int level) => $"{snap.Scope}|{window}:{level}";

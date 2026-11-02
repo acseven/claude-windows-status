@@ -125,10 +125,19 @@ public sealed class UsageMonitor : IDisposable
 
         if (Last is null) Set(MonitorState.Loading, "Loading…");
 
+        var ok = false;
         try
         {
             var policy = Policy.Current;
-            if (_settings.RemoveDisallowed(policy, account) > 0) _settings.Save();
+            var removed = _settings.RemoveDisallowed(policy, account);
+            if (removed.Count > 0)
+            {
+                _settings.Save();
+                // Other saved accounts were deleted with their history: tell the user.
+                AccountRefused?.Invoke(removed.Count == 1
+                    ? $"{removed[0].Label} is not allowed by your administrator and was removed."
+                    : $"{string.Join(", ", removed.Select(a => a.Label))} are not allowed by your administrator and were removed.");
+            }
             if (!_settings.InMemoryOnly) HistoryStore.DeleteDisallowedOrganizations(policy);
             ApplyInterval(); // picks up a RefreshMinutes policy changed while running
 
@@ -165,7 +174,7 @@ public sealed class UsageMonitor : IDisposable
             if (Stale()) return;
             Last = snapshot;
             _retried = false;
-            Set(MonitorState.Ok, null);
+            ok = true;
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {
@@ -204,13 +213,17 @@ public sealed class UsageMonitor : IDisposable
                 _retry.Start();
             }
         }
+
+        // Outside the try: subscribers (notifications, history, rendering) must not turn a good fetch into an error.
+        if (ok) Set(MonitorState.Ok, null);
     }
 
     void Set(MonitorState state, string? message)
     {
         State = state;
         Message = message;
-        Changed?.Invoke();
+        try { Changed?.Invoke(); }
+        catch (Exception ex) { System.Diagnostics.Trace.WriteLine("Changed subscriber failed: " + ex); }
     }
 
     public void Dispose()

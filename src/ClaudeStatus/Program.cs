@@ -199,8 +199,7 @@ sealed class Shell
         _options = options;
         // Demo runs never touch the user's saved settings or session.
         _settings = options.Demo ? new Settings { InMemoryOnly = true } : Settings.Load();
-        if (options.Style is WidgetStyle.IconOnly) _settings.ShowTaskbarWidget = false;
-        else if (options.Style is { } style) _settings.WidgetStyle = style;
+        _settings.RunStyle = options.Style; // this run only; never written by Save()
         _monitor = new UsageMonitor(_settings);
         _tray = new TrayController(_settings, _monitor, SignIn, ShowDetails, () => _widget!.ResetPosition(), QuitRequested);
         // Sign-out, shutdown and restart must never be blocked, whatever the policy says.

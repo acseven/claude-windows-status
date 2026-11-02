@@ -35,7 +35,8 @@ public sealed class UsageClient : IDisposable
     public async Task<IReadOnlyList<Organization>> GetOrganizationsAsync(string sessionKey, CancellationToken ct)
     {
         using var doc = await GetJsonAsync("/api/organizations", sessionKey, ct);
-        if (doc.RootElement.ValueKind != JsonValueKind.Array) return [];
+        if (doc.RootElement.ValueKind != JsonValueKind.Array)
+            throw new HttpRequestException("claude.ai returned an unexpected response. Will retry.");
         return doc.RootElement.EnumerateArray()
             .Where(o => o.TryGetProperty("uuid", out var u) && u.ValueKind == JsonValueKind.String)
             .Select(o => new Organization(
@@ -60,7 +61,8 @@ public sealed class UsageClient : IDisposable
         try
         {
             using var doc = await GetJsonAsync("/api/account", sessionKey, ct);
-            if (doc.RootElement.ValueKind != JsonValueKind.Object) return null;
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+                throw new HttpRequestException("claude.ai returned an unexpected response. Will retry.");
             foreach (var name in new[] { "email_address", "email" })
                 if (doc.RootElement.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(v.GetString()))
                     return v.GetString();
@@ -70,9 +72,6 @@ public sealed class UsageClient : IDisposable
             // Endpoint not available: fall back to the organisation name. Transient failures (network,
             // 429, Cloudflare, 5xx) propagate, so they are retried instead of being read as "no e-mail"
             // (which a domain policy would treat as a refused account and delete).
-        }
-        catch (JsonException)
-        {
         }
         return null;
     }
@@ -152,7 +151,13 @@ public sealed class UsageClient : IDisposable
         if (status is < 200 or > 299)
             throw new HttpRequestException($"claude.ai returned HTTP {status}.", null, (HttpStatusCode)status);
 
-        return JsonDocument.Parse(body);
+        // A 200 that is not JSON (captive portal, proxy, maintenance or Cloudflare page) is transient:
+        // never let it read as "empty", which a tenancy policy could turn into a refusal.
+        try { return JsonDocument.Parse(body); }
+        catch (JsonException)
+        {
+            throw new HttpRequestException("claude.ai returned an unexpected (non-JSON) response. Will retry.");
+        }
     }
 
     public void Dispose() => _browser.Dispose();

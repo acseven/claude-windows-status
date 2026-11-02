@@ -216,10 +216,11 @@ and are never stored at machine level.
 |--------------------------|----------------------------------------------------|
 | Settings, sessions (DPAPI)| `%LOCALAPPDATA%\ClaudeStatus\settings.json`       |
 | Usage history (numbers only) | `%LOCALAPPDATA%\ClaudeStatus\history\<account id>_<organisation id>.json` |
-| Embedded browser profile | `%LOCALAPPDATA%\ClaudeStatus\WebView2\`            |
+| Embedded browser profile (requests) | `%LOCALAPPDATA%\ClaudeStatus\WebView2\` |
+| Sign-in window profile (cleared at each sign-in) | `%LOCALAPPDATA%\ClaudeStatus\WebView2-SignIn\` |
 
 **Sign out of …** in the Account menu removes that account's stored session and its history.
-Uninstalling leaves per-user data in place; delete the folder above to remove it.
+Uninstalling leaves per-user data in place; delete `%LOCALAPPDATA%\ClaudeStatus` to remove it.
 
 ## Building
 
@@ -288,7 +289,7 @@ Command-line switches, useful for testing:
   `/api/organizations/{id}/usage` with the signed-in session. claude.ai is behind Cloudflare, which
   blocks plain HTTP clients, so `BrowserFetcher` makes these calls with `fetch()` inside a hidden
   embedded Edge (WebView2) page. Requests run one at a time; each sets the account's session as an
-  in-memory cookie and removes it afterwards, so accounts never share a request. Every object in the response that
+  in-memory cookie and afterwards removes it and every other claude.ai cookie except Cloudflare's, so accounts never share a request. Every object in the response that
   has a `utilization` field becomes a limit row, so new limit types appear without code changes.
 - `TaskbarWidget` is a borderless, always-on-top, non-activating window placed over the taskbar
   next to the notification area. `TaskbarLayout` reads the taskbar buttons' positions through UI
