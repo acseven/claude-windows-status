@@ -28,6 +28,10 @@ The check:
    a plain WM_CLOSE) honours `DisableExit`; sign-out/shutdown (`SessionEnding`), the installer
    (`CloseApplication` terminates after its timeout) and takeover by a different version
    (`TakeoverSignal`) must keep working under it. Adding a new way to exit means checking it.
+   WM_CLOSE arrives three ways, all through `Shell.OnCloseRequest`: posted to an unowned top-level
+   window (what `taskkill` does; WPF's hidden owner windows, caught in `OnThreadMessage`), or sent
+   to the widget or the browser host window (their `Closing` events). A new top-level window must
+   not close the app or swallow WM_CLOSE on its own.
 4. **Tenancy policies fail closed.** `AllowedEmailDomains` / `AllowedOrganizations`: a refused
    account is removed with its stored session and its usage history, and the user is told; history
    of a refused organisation is deleted; an unreadable e-mail is refused when domains are set;

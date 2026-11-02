@@ -134,6 +134,14 @@ static class Native
         return false;
     }
 
+    public const int WM_CLOSE = 0x0010;
+    const uint GW_OWNER = 4, GA_ROOT = 2;
+    [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr hWnd, uint flags);
+
+    /// <summary>A top-level window without an owner: the windows "taskkill" sends its close request to.</summary>
+    public static bool IsUnownedTopLevel(IntPtr hwnd) =>
+        hwnd != IntPtr.Zero && GetAncestor(hwnd, GA_ROOT) == hwnd && GetWindow(hwnd, GW_OWNER) == IntPtr.Zero;
+
     /// <summary>Hide from Alt-Tab and never take focus.</summary>
     public static void MakeToolWindow(IntPtr hwnd)
     {

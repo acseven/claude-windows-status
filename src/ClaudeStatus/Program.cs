@@ -209,17 +209,20 @@ sealed class Shell
         _app.SessionEnding += (_, _) => _sessionEndingTick = Environment.TickCount64;
         _widget = new TaskbarWidget(_settings, _monitor, _tray.ShowMenuAt, ShowDetails);
         _widget.ShownChanged += _tray.SetWidgetShown;
-        // The installer (and Windows) ask the app to close by sending WM_CLOSE to its windows.
+        // The installer, Windows and "taskkill" (without /f) ask the app to close with WM_CLOSE, and
+        // which window gets it depends on the sender. taskkill posts it only to unowned top-level
+        // windows, and WPF gives every ShowInTaskbar=false window (the widget, the browser host) a
+        // hidden owner window that ignores WM_CLOSE: so a posted WM_CLOSE is caught in the message
+        // loop, whichever of our windows it is for. WM_CLOSE sent straight to the widget or the
+        // browser host goes through their Closing events. All of them end up in OnCloseRequest.
+        System.Windows.Interop.ComponentDispatcher.ThreadFilterMessage += OnThreadMessage;
         _widget.Closing += (_, e) =>
         {
             if (_exiting) return;
             e.Cancel = true;
-            // DisableExit: a plain close request (e.g. "taskkill" without /f) is ignored. The installer
-            // still ends the process itself (util:CloseApplication terminates it after its timeout).
-            if (Policy.Current.DisableExit && !SessionEndingNow) return;
-            // Close() cannot be called while the widget is inside its own Closing event.
-            _widget.Dispatcher.BeginInvoke(new Action(Exit));
+            OnCloseRequest();
         };
+        BrowserFetcher.CloseRequested += OnCloseRequest;
         _notifier = new Notifier(_settings, _tray.Notify);
         _monitor.AccountRefused += message => _tray.Notify("Claude account not allowed", message);
 
@@ -313,6 +316,30 @@ sealed class Shell
     /// <summary>The user (menu, flyout button) or <c>--quit</c> asks to quit: not allowed under DisableExit.</summary>
     bool SessionEndingNow => _sessionEndingTick != long.MinValue && Environment.TickCount64 - _sessionEndingTick < 30_000;
 
+    /// <summary>
+    /// A WM_CLOSE posted to one of our unowned top-level windows is a request to close the app (this is
+    /// what "taskkill" without /f does). Our own windows close with a sent WM_CLOSE (Close(), Alt+F4),
+    /// which never passes through here, and owned windows (dialogs, the flyout) are left alone.
+    /// </summary>
+    void OnThreadMessage(ref System.Windows.Interop.MSG msg, ref bool handled)
+    {
+        if (handled || msg.message != Native.WM_CLOSE || _exiting || !Native.IsUnownedTopLevel(msg.hwnd)) return;
+        handled = true; // never let it reach (and possibly destroy) a hidden helper window
+        OnCloseRequest();
+    }
+
+    /// <summary>A close request from outside (WM_CLOSE to one of the app's windows).</summary>
+    void OnCloseRequest()
+    {
+        if (_exiting) return;
+        // DisableExit: a plain close request (e.g. "taskkill" without /f) is ignored. Sign-out/shutdown
+        // still closes the app, and the installer ends the process itself (util:CloseApplication
+        // terminates it after its timeout).
+        if (Policy.Current.DisableExit && !SessionEndingNow) return;
+        // Not from inside the sender's Closing event: windows cannot be closed while they are closing.
+        _app.Dispatcher.BeginInvoke(new Action(Exit));
+    }
+
     public void QuitRequested()
     {
         if (Policy.Current.DisableExit) return;
@@ -323,6 +350,8 @@ sealed class Shell
     {
         if (_exiting) return;
         _exiting = true;
+        BrowserFetcher.CloseRequested -= OnCloseRequest;
+        System.Windows.Interop.ComponentDispatcher.ThreadFilterMessage -= OnThreadMessage;
         _details?.Close();
         _widget.Close();
         _tray.Dispose();

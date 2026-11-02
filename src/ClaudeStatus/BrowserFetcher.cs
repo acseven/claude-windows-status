@@ -29,6 +29,12 @@ public sealed class BrowserFetcher : IDisposable
     bool _disposed;
     bool _reload;
 
+    /// <summary>
+    /// Raised when something outside the app asks the hidden browser window to close (WM_CLOSE). The
+    /// window itself always stays until <see cref="Dispose"/>; the app decides whether to quit.
+    /// </summary>
+    public static event Action? CloseRequested;
+
     /// <summary>Cloudflare asked for a check: reload the page (renewing its clearance) before the next request.</summary>
     public void RenewClearance() => _reload = true;
 
@@ -118,8 +124,15 @@ public sealed class BrowserFetcher : IDisposable
         _web = new WebView2();
         _host.Content = _web;
         _host.SourceInitialized += (_, _) => Native.MakeToolWindow(new WindowInteropHelper(_host).Handle);
-        // WM_CLOSE from outside (installer, Windows) closes the app via the widget; this window stays.
-        _host.Closing += (_, e) => e.Cancel = !_disposed;
+        // WM_CLOSE sent to this window from outside (installer, Windows) is a request to close the app,
+        // not just this window: pass it on and keep the window. (A posted WM_CLOSE, as from "taskkill",
+        // goes to WPF's hidden owner window instead and is caught by Shell.OnThreadMessage.)
+        _host.Closing += (_, e) =>
+        {
+            if (_disposed) return;
+            e.Cancel = true;
+            CloseRequested?.Invoke();
+        };
         _host.Show();
 
         var options = new CoreWebView2EnvironmentOptions { AllowSingleSignOnUsingOSPrimaryAccount = true };

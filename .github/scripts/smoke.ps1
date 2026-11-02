@@ -104,6 +104,20 @@ Stop-Process -Id $new.Id -Force
 Start-Sleep -Seconds 2
 Write-Host 'takeover OK'
 
+# Only one copy runs per Windows session: starting the same copy again, even several times at once,
+# leaves exactly the first one running (the others show its flyout and exit).
+Write-Host "== single instance"
+$first = Start-Process -FilePath $Exe -ArgumentList '--demo' -PassThru
+Start-Sleep -Seconds 6
+$extra = 1..3 | ForEach-Object { Start-Process -FilePath $Exe -ArgumentList '--demo' -PassThru }
+foreach ($e in $extra) { if (-not $e.WaitForExit(15000)) { throw "single instance: a second copy kept running (PID $($e.Id))" } }
+if ($first.HasExited) { throw 'single instance: the first copy exited when started again' }
+$count = @(Get-Process -Name ClaudeStatus -ErrorAction SilentlyContinue).Count
+if ($count -ne 1) { throw "single instance: $count copies running" }
+Stop-Process -Id $first.Id -Force
+Start-Sleep -Seconds 2
+Write-Host 'single instance OK'
+
 if ($Msi) {
     # Installer wizard: open it, capture the first page, cancel.
     Write-Host "== installer wizard"
@@ -146,7 +160,7 @@ Write-Host "== DisableExit policy"
 # Otherwise the "ignored under the policy" check below could pass without testing anything.
 $ctl = Start-Process -FilePath $Exe -ArgumentList '--demo' -PassThru
 Start-Sleep -Seconds 6
-& taskkill /PID $ctl.Id | Out-Null
+& taskkill /PID $ctl.Id 2>&1 | Write-Host
 if (-not $ctl.WaitForExit(15000)) { Stop-Process -Id $ctl.Id -Force; throw 'control: a plain close request did not close the app, so the DisableExit check would prove nothing' }
 Write-Host 'control: a plain close request closes the app (no policy)'
 $polKey = 'HKLM:\SOFTWARE\Policies\ClaudeStatus'
@@ -161,7 +175,7 @@ try {
     Write-Host 'DisableExit: --quit ignored'
 
     # Taskkill without /f sends a plain close request.
-    & taskkill /PID $locked.Id | Out-Null
+    & taskkill /PID $locked.Id 2>&1 | Write-Host
     Start-Sleep -Seconds 4
     if ($locked.HasExited) { throw 'DisableExit: a plain close request closed the app' }
     Write-Host 'DisableExit: plain close request ignored'
