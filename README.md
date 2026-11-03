@@ -148,6 +148,10 @@ To skip the autostart entry, deploy with `AUTOSTART=0`. Use a transform (`.mst`)
 Upgrades: add the newer MSI to the same GPO as an upgrade of the existing package. All builds
 share one UpgradeCode, so the new version replaces the old one.
 
+To pilot on some computers, filter the GPO on a computer security group (Security Filtering, or
+item-level targeting for a Preferences task); widen by adding members. An install script that
+checks the group itself should not install when the lookup fails.
+
 ### 2. Administrative template (optional)
 
 Copy `policy/ClaudeStatus.admx` to `\\<domain>\SYSVOL\<domain>\Policies\PolicyDefinitions\`
@@ -256,6 +260,9 @@ current month, builds and smoke-tests everything, and publishes a GitHub release
 A test build can also be published as a **pre-release**, either by pushing a `vYYYY.M.N` tag or
 by pushing a commit whose message contains `[release]` (the next free number is used).
 
+So re-pushing an existing tag republishes it as a pre-release. To move tags, run
+`gh workflow disable build.yml` first and enable it again afterwards.
+
 Ordinary pushes build version `YYYY.M.0` and only keep the files as workflow artifacts.
 
 ## Verification
@@ -283,6 +290,12 @@ Command-line switches, useful for testing:
 | `--open-about`                 | Open the About window at start                 |
 | `--quit`                        | Close the running copy (ignored under the `DisableExit` policy) |
 | `--selftest-network=FILE`       | One test request through the embedded browser; result in FILE |
+
+## Contributing
+
+No personal information in the repo, including commit e-mails: commit with your GitHub `noreply`
+address and turn on **Keep my email addresses private** (GitHub → Settings → Emails). PRs merged
+on GitHub use the merging account's e-mail.
 
 ## How it works
 
