@@ -86,5 +86,19 @@
         </enum>
       </elements>
     </policy>
+    <policy name="ShowWelcomeTour" class="Both" displayName="$(string.ShowWelcomeTour)" explainText="$(string.ShowWelcomeTour_Help)"
+            key="SOFTWARE\Policies\ClaudeStatus" valueName="ShowWelcomeTour">
+      <parentCategory ref="ClaudeStatus" />
+      <supportedOn ref="SUPPORTED_Win10" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+    <policy name="PromptSignIn" class="Both" displayName="$(string.PromptSignIn)" explainText="$(string.PromptSignIn_Help)"
+            key="SOFTWARE\Policies\ClaudeStatus" valueName="PromptSignIn">
+      <parentCategory ref="ClaudeStatus" />
+      <supportedOn ref="SUPPORTED_Win10" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
   </policies>
 </policyDefinitions>

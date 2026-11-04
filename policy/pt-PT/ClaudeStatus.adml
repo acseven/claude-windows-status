@@ -31,6 +31,10 @@
       <string id="Language_Auto">Seguir o idioma de apresentação do Windows</string>
       <string id="Language_En">Inglês</string>
       <string id="Language_PtPT">Português (Portugal)</string>
+      <string id="ShowWelcomeTour">Mostrar o guia de boas-vindas</string>
+      <string id="ShowWelcomeTour_Help">Ativado ou Não Configurado: da primeira vez que o Claude Status é iniciado sem nenhuma conta Claude com sessão iniciada, abre o guia de boas-vindas, uma vez por utilizador do Windows. O guia explica as barras na barra de tarefas e os ícones na área de notificação (incluindo os ícones ocultos em "Mostrar ícones ocultos"), e o último passo abre a janela de início de sessão. Desativado: o guia nunca abre sozinho. Os utilizadores podem sempre abri-lo a partir do menu (Guia de boas-vindas…) ou com "ClaudeStatus.exe --welcome".</string>
+      <string id="PromptSignIn">Abrir a janela de início de sessão no arranque</string>
+      <string id="PromptSignIn_Help">Ativado ou Não Configurado: enquanto não houver nenhuma conta Claude com sessão iniciada, o Claude Status abre a janela de início de sessão quando é iniciado. Da primeira vez, abre em vez disso o guia de boas-vindas (ver "Mostrar o guia de boas-vindas"), cujo último passo abre a janela de início de sessão. Desativado: o Claude Status apenas mostra uma notificação a pedir ao utilizador que inicie sessão. "ClaudeStatus.exe --sign-in" abre sempre a janela de início de sessão. Quando o nome de início de sessão do Windows (nome principal de utilizador) é um endereço de e-mail, e é permitido por "Domínios de e-mail de conta permitidos" se essa política estiver definida, é preenchido no campo de e-mail da página de início de sessão do claude.ai; os utilizadores podem alterá-lo, e nada é enviado até continuarem.</string>
     </stringTable>
     <presentationTable>
       <presentation id="RefreshMinutes">

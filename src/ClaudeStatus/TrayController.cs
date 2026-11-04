@@ -40,6 +40,9 @@ public sealed class TrayController : IDisposable
 
     public WinForms.ContextMenuStrip Menu { get; } = new();
 
+    /// <summary>Opens the welcome tour (menu item "Welcome tour…").</summary>
+    public Action? ShowWelcome { get; set; }
+
     public TrayController(Settings settings, UsageMonitor monitor, Action signIn,
         Action<System.Windows.Point?> showDetails, Action resetPosition, Action exit)
     {
@@ -107,6 +110,7 @@ public sealed class TrayController : IDisposable
         Menu.Items.Add(_account);
         Menu.Items.Add(_organization);
         Menu.Items.Add(new WinForms.ToolStripSeparator());
+        Menu.Items.Add(L.WelcomeMenu, null, (_, _) => ShowWelcome?.Invoke());
         Menu.Items.Add(L.AboutMenu(AboutWindow.Version), null, (_, _) => AboutWindow.ShowSingle());
         _quit.Click += (_, _) => _exit();
         Menu.Items.Add(_quit);

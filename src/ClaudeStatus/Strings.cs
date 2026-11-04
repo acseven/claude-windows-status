@@ -207,4 +207,54 @@ public static class L
     // ---- Sign-in window --------------------------------------------------------------------
     public static string SignInTitle => T("Sign in to Claude", "Iniciar sessão no Claude");
     public static string WebView2Required => T("Microsoft Edge WebView2 Runtime is required.", "É necessário o Microsoft Edge WebView2 Runtime.");
+    public static string EmailFromWindows(string email) => T(
+        $"Your e-mail address ({email}) was filled in from your Windows sign-in. Change it if you use another Claude account.",
+        $"O endereço de e-mail ({email}) foi preenchido a partir do início de sessão do Windows. Altere-o se utilizar outra conta Claude.");
+
+    // ---- Welcome tour ----------------------------------------------------------------------
+    public static string WelcomeTitle => T("Welcome to Claude Status", "Bem-vindo ao Claude Status");
+    public static string StepOf(int n, int total) => T($"{n} of {total}", $"{n} de {total}");
+    public static string Skip => T("Skip", "Ignorar");
+    public static string Back => T("Back", "Anterior");
+    public static string Next => T("Next", "Seguinte");
+    public static string SignInButton => T("Sign in…", "Iniciar sessão…");
+    public static string Close => T("Close", "Fechar");
+
+    public static string Welcome1Title => T("Welcome to Claude Status", "Bem-vindo ao Claude Status");
+    public static string Welcome1Lead => T("Know how much Claude you have left", "Saiba quanto Claude ainda tem disponível");
+    public static string Welcome1Text => T(
+        "Claude Status shows your Claude plan usage in the taskbar: the 5-hour session limit, the weekly limit and when each one resets. It works alongside Claude Desktop and claude.ai.",
+        "O Claude Status mostra a utilização do seu plano Claude na barra de tarefas: o limite da sessão de 5 horas, o limite semanal e quando cada um é reposto. Funciona em conjunto com o Claude Desktop e o claude.ai.");
+
+    public static string Welcome2Title => T("Always on the taskbar", "Sempre na barra de tarefas");
+    public static string Welcome2Text => T(
+        "The bars next to the clock show the 5-hour and weekly limits. Drag them sideways to move them. The two icons in the notification area show the same values; if Windows hides them under ^ (Show hidden icons), drag them onto the taskbar.",
+        "As barras junto ao relógio mostram os limites de 5 horas e semanal. Arraste-as para os lados para as mudar de posição. Os dois ícones na área de notificação mostram os mesmos valores; se o Windows os ocultar em ^ (Mostrar ícones ocultos), arraste-os para a barra de tarefas.");
+
+    public static string Welcome3Title => T("The first time", "Na primeira utilização");
+    public static string Welcome3Text => T(
+        "Choose what to show under Display, in the right-click menu: bars, icons or both.",
+        "Escolha o que quer ver em Mostrar, no menu do botão direito do rato: barras, ícones ou ambos.");
+    public static string Welcome3Warning => T(
+        "The bars show “Claude · sign in” until you sign in, and Windows probably hides the two icons under ^ (Show hidden icons). To always see them, drag them from there onto the taskbar.",
+        "As barras mostram «Claude · iniciar sessão» até iniciar sessão, e o Windows provavelmente oculta os dois ícones em ^ (Mostrar ícones ocultos). Para os ver sempre, arraste-os de lá para a barra de tarefas.");
+    public static string Drag => T("drag", "arrastar");
+
+    public static string Welcome4Title => T("Details and alerts", "Detalhes e alertas");
+    public static string Welcome4Text => T(
+        "Click the bars or an icon to see the details, the forecast and your usage history. Right-click to open the menu. A Windows notification tells you when you are close to a limit, so you are not cut off in the middle of a task.",
+        "Clique nas barras ou num ícone para ver os detalhes, a previsão e o histórico de utilização. Clique com o botão direito do rato para abrir o menu. Recebe uma notificação do Windows quando estiver perto de um limite, para não ficar sem acesso a meio de uma tarefa.");
+    public static string SampleAlertTitle => T("5-hour limit at 90%", "Limite de 5 horas a 90%");
+    public static string SampleAlertText => T("Resets in 48m", "Reposto dentro de 48min");
+
+    public static string Welcome5Title => T("Sign in once", "Inicie sessão uma vez");
+    public static string Welcome5Text => T(
+        "Sign in to your Claude account in the next window, just like on claude.ai. Claude Status only reads your usage; it never sees your password, and the session is stored encrypted, readable only by your Windows account.",
+        "Inicie sessão na sua conta Claude na janela seguinte, tal como no claude.ai. O Claude Status apenas lê a utilização; nunca vê a sua palavra-passe, e a sessão é guardada encriptada, acessível apenas à sua conta do Windows.");
+    public static string Welcome5Email => T("Your work e-mail address (from your Windows sign-in)",
+        "O seu endereço de e-mail profissional (do início de sessão do Windows)");
+    public static string Welcome5Sso => T("If your organisation uses single sign-on, continue with your work e-mail: claude.ai takes you to your organisation's sign-in page.",
+        "Se a sua organização utilizar o início de sessão único, continue com o e-mail profissional: o claude.ai encaminha-o para a página de início de sessão da organização.");
+    public static string Welcome5Done => T("You are signed in. Claude Status is ready.", "Sessão iniciada. O Claude Status está pronto.");
+    public static string WelcomeMenu => T("Welcome tour…", "Guia de boas-vindas…");
 }

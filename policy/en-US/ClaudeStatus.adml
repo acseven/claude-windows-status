@@ -31,6 +31,10 @@
       <string id="Language_Auto">Follow the Windows display language</string>
       <string id="Language_En">English</string>
       <string id="Language_PtPT">Portuguese (Portugal)</string>
+      <string id="ShowWelcomeTour">Show the welcome tour</string>
+      <string id="ShowWelcomeTour_Help">Enabled or Not configured: the first time Claude Status starts with no Claude account signed in, it opens the welcome tour, once per Windows user. The tour explains the taskbar bars and the tray icons (including icons hidden under "Show hidden icons"), and its last step opens the sign-in window. Disabled: the tour never opens by itself. Users can always open it from the menu (Welcome tour…) or with "ClaudeStatus.exe --welcome".</string>
+      <string id="PromptSignIn">Open the sign-in window at start-up</string>
+      <string id="PromptSignIn_Help">Enabled or Not configured: while no Claude account is signed in, Claude Status opens the sign-in window when it starts. The first time, the welcome tour opens instead (see "Show the welcome tour"), and its last step opens the sign-in window. Disabled: Claude Status only shows a notification asking the user to sign in. "ClaudeStatus.exe --sign-in" always opens the sign-in window. When the Windows sign-in name (user principal name) is an e-mail address, and is allowed by "Allowed account e-mail domains" if that is set, it is filled into the e-mail field of the claude.ai sign-in page; users can change it, and nothing is sent until they continue.</string>
     </stringTable>
     <presentationTable>
       <presentation id="RefreshMinutes">

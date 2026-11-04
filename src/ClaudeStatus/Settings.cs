@@ -48,6 +48,8 @@ public sealed class Settings
     public bool ShowWeeklyTrayIcon { get; set; } = true;
     public bool NotificationsEnabled { get; set; } = true;
     public bool HistoryEnabled { get; set; } = true;
+    /// <summary>The welcome tour has opened once by itself (it never does again; --welcome still opens it).</summary>
+    public bool WelcomeShown { get; set; }
 
     /// <summary>"window:threshold" → resets_at of the window we last notified for, so each alert fires once per window.</summary>
     public Dictionary<string, string> Notified { get; set; } = new();
@@ -144,6 +146,10 @@ public sealed class Settings
     };
     [JsonIgnore] public int EffectiveRefreshMinutes => Policy.Current.RefreshMinutes ?? Math.Clamp(RefreshMinutes, 1, 60);
     /// <summary>Policy "Turn off usage history" wins over the user's choice.</summary>
+    /// <summary>Open the welcome tour by itself (once, while no account is signed in), unless the policy says never.</summary>
+    [JsonIgnore] public bool EffectiveWelcomeTour => Policy.Current.ShowWelcomeTour != false && !WelcomeShown;
+    /// <summary>Open the sign-in window at start-up while no account is signed in (policy 0: only a notification).</summary>
+    [JsonIgnore] public bool EffectivePromptSignIn => Policy.Current.PromptSignIn != false;
     [JsonIgnore] public bool EffectiveHistory => !Policy.Current.DisableUsageHistory && HistoryEnabled;
     [JsonIgnore] public bool EffectiveNotifications => Policy.Current.DisableNotifications is bool off ? !off : NotificationsEnabled;
 

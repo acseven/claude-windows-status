@@ -8,6 +8,8 @@ static class Program
     const string ShowSignal = @"Local\ClaudeStatus.Show";
     const string QuitSignal = @"Local\ClaudeStatus.Quit";         // --quit
     const string TakeoverSignal = @"Local\ClaudeStatus.Takeover"; // a different version/location replaces this copy
+    const string WelcomeSignal = @"Local\ClaudeStatus.Welcome";   // --welcome
+    const string SignInSignal = @"Local\ClaudeStatus.SignIn";     // --sign-in
 
     [STAThread]
     static void Main(string[] args)
@@ -30,8 +32,9 @@ static class Program
             }
             if (!RunningCopyDiffers())
             {
-                // The same copy started again (e.g. from the Start menu): show its details flyout.
-                Signal(ShowSignal);
+                // The same copy started again (e.g. from the Start menu): show its details flyout,
+                // or the welcome tour / sign-in window that was asked for.
+                Signal(options.Welcome ? WelcomeSignal : options.SignIn ? SignInSignal : ShowSignal);
                 return;
             }
             // A different version or location (an upgrade, the portable exe next to the installed
@@ -53,6 +56,8 @@ static class Program
         using var show = new EventWaitHandle(false, EventResetMode.AutoReset, ShowSignal);
         using var quit = new EventWaitHandle(false, EventResetMode.AutoReset, QuitSignal);
         using var takeover = new EventWaitHandle(false, EventResetMode.AutoReset, TakeoverSignal);
+        using var welcome = new EventWaitHandle(false, EventResetMode.AutoReset, WelcomeSignal);
+        using var signIn = new EventWaitHandle(false, EventResetMode.AutoReset, SignInSignal);
 
         System.Windows.Forms.Application.EnableVisualStyles();
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
@@ -62,13 +67,15 @@ static class Program
             shell.Start();
             var listener = new Thread(() =>
             {
-                var handles = new WaitHandle[] { show, quit, takeover };
+                var handles = new WaitHandle[] { show, quit, takeover, welcome, signIn };
                 while (true)
                 {
                     switch (WaitHandle.WaitAny(handles))
                     {
                         case 0: app.Dispatcher.BeginInvoke(shell.ShowFromSignal); break;
                         case 1: app.Dispatcher.BeginInvoke(shell.QuitRequested); break; // ignored under DisableExit
+                        case 3: app.Dispatcher.BeginInvoke(shell.ShowWelcome); break;
+                        case 4: app.Dispatcher.BeginInvoke(shell.SignInFromSignal); break;
                         default: app.Dispatcher.BeginInvoke(shell.Exit); return;
                     }
                 }
@@ -158,9 +165,11 @@ static class Program
 /// Command line: --demo[=alert] shows sample data without signing in, --style=bars|compact|icon
 /// overrides the display for this run, --open-details opens the flyout (used for screenshots),
 /// --open-stats opens it on the Stats tab, --open-about opens the About window, --quit closes a running copy,
-/// --lang=en|pt-PT sets the interface language for this run (unless the Language policy is set).
+/// --lang=en|pt-PT sets the interface language for this run (unless the Language policy is set),
+/// --welcome opens the welcome tour, --sign-in the sign-in window (in the running copy, if there is one).
 /// </summary>
-sealed record Options(bool Demo, bool DemoAlert, WidgetStyle? Style, bool OpenDetails, bool Quit, string? SelfTestFile, bool OpenStats = false, bool OpenAbout = false, string? Language = null)
+sealed record Options(bool Demo, bool DemoAlert, WidgetStyle? Style, bool OpenDetails, bool Quit, string? SelfTestFile, bool OpenStats = false, bool OpenAbout = false, string? Language = null,
+    bool Welcome = false, bool SignIn = false)
 {
     public static Options Parse(string[] args)
     {
@@ -175,7 +184,8 @@ sealed record Options(bool Demo, bool DemoAlert, WidgetStyle? Style, bool OpenDe
         var lang = args.FirstOrDefault(a => a.StartsWith("--lang=", StringComparison.OrdinalIgnoreCase))?["--lang=".Length..];
         var selfTest = args.FirstOrDefault(a => a.StartsWith("--selftest-network=", StringComparison.OrdinalIgnoreCase))?["--selftest-network=".Length..];
         return new Options(Has("--demo") || Has("--demo=alert"), Has("--demo=alert"), style,
-            Has("--open-details") || Has("--open-stats"), Has("--quit"), selfTest, Has("--open-stats"), Has("--open-about"), lang);
+            Has("--open-details") || Has("--open-stats"), Has("--quit"), selfTest, Has("--open-stats"), Has("--open-about"), lang,
+            Has("--welcome"), Has("--sign-in"));
     }
 }
 
@@ -205,7 +215,10 @@ sealed class Shell
         _settings = options.Demo ? new Settings { InMemoryOnly = true } : Settings.Load();
         _settings.RunStyle = options.Style; // this run only; never written by Save()
         _monitor = new UsageMonitor(_settings);
-        _tray = new TrayController(_settings, _monitor, SignIn, ShowDetails, () => _widget!.ResetPosition(), QuitRequested);
+        _tray = new TrayController(_settings, _monitor, SignIn, ShowDetails, () => _widget!.ResetPosition(), QuitRequested)
+        {
+            ShowWelcome = ShowWelcome,
+        };
         // Sign-out, shutdown and restart must never be blocked, whatever the policy says.
         // Windows gives no "cancelled" event when another program vetoes the shutdown, so the flag only
         // counts for a short while instead of staying set for the rest of the run.
@@ -245,6 +258,7 @@ sealed class Shell
             _openStatsOnce = _options.OpenStats;
             if (_options.OpenDetails) ShowDetails(_widget.Anchor);
             if (_options.OpenAbout) AboutWindow.ShowSingle();
+            if (_options.Welcome) ShowWelcome();
             return;
         }
         _monitor.Start();
@@ -252,8 +266,45 @@ sealed class Shell
         _openStatsOnce = _options.OpenStats;
         if (_options.OpenDetails) ShowDetails(_widget.Anchor);
         if (_options.OpenAbout) AboutWindow.ShowSingle();
-        if (string.IsNullOrEmpty(_settings.SessionKey))
-            _tray.Notify("Claude Status", L.SignInPrompt);
+        if (_options.Welcome)
+        {
+            ShowWelcome();
+        }
+        else if (_options.SignIn)
+        {
+            SignInFromSignal();
+        }
+        else if (string.IsNullOrEmpty(_settings.SessionKey))
+        {
+            // No account yet (first start, or never signed in): the tray icons are probably hidden in
+            // the overflow, so a notification alone is easily missed. Open the welcome tour once,
+            // otherwise the sign-in window, unless the policies say not to.
+            if (_settings.EffectiveWelcomeTour)
+            {
+                _settings.WelcomeShown = true;
+                _settings.Save();
+                ShowWelcome();
+            }
+            else if (_settings.EffectivePromptSignIn)
+            {
+                SignInFromSignal();
+            }
+            else
+            {
+                _tray.Notify("Claude Status", L.SignInPrompt);
+            }
+        }
+    }
+
+    /// <summary>Opens the welcome tour; its last step signs in (not in demo runs).</summary>
+    public void ShowWelcome() =>
+        WelcomeWindow.ShowSingle(_options.Demo ? null : SignIn, signedIn: !string.IsNullOrEmpty(_settings.SessionKey));
+
+    /// <summary>Opens the sign-in window once the app has finished starting (it is modal).</summary>
+    public void SignInFromSignal()
+    {
+        if (_options.Demo) return;
+        _app.Dispatcher.BeginInvoke(new Action(SignIn), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
     }
 
     /// <summary>Signs in a Claude account in a clean browser profile and makes it the active one.</summary>
@@ -263,7 +314,7 @@ sealed class Shell
         _signingIn = true;
         try
         {
-            var login = new LoginWindow();
+            var login = new LoginWindow(WindowsAccount.SuggestedEmail);
             if (login.ShowDialog() == true && !string.IsNullOrEmpty(login.SessionKey))
                 _monitor.AddAccount(login.SessionKey);
         }

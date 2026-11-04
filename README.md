@@ -114,7 +114,11 @@ The installer wizard shows the licence, lets you choose the install folder and w
 Status starts automatically for all users, shows progress, and can start the app when it
 finishes.
 
-On first start, click the tray icon and sign in. Windows 11 places new tray icons in the
+On first start, with no account signed in, Claude Status opens a short welcome tour whose last step
+opens the sign-in window (later starts open the sign-in window directly until an account is signed
+in). When the Windows sign-in name is an e-mail address, it is filled into the claude.ai e-mail field.
+The tour is also in the menu (*Welcome tour…*) and both can be opened with `--welcome` / `--sign-in`.
+Windows 11 places new tray icons in the
 overflow area; to keep both icons visible, go to **Settings → Personalization → Taskbar →
 Other system tray icons** and turn on both *Claude Status* entries.
 
@@ -168,6 +172,8 @@ appear under **Computer/User Configuration → Administrative Templates → Clau
 | Turn off usage history        | `DisableUsageHistory` (DWORD 0/1)                    | 1: no history, existing history deleted, Stats tab hidden |
 | Allowed account e-mail domains| `AllowedEmailDomains` (REG_SZ, `a.com; b.org`)        | Only accounts in these domains           |
 | Allowed Claude organizations  | `AllowedOrganizations` (REG_SZ, UUIDs separated by `;`) | Only these organisations                |
+| Show the welcome tour         | `ShowWelcomeTour` (DWORD 0/1)                        | 0: never opens by itself; 1 or not set: once, at the first start with no account signed in |
+| Open the sign-in window at start-up | `PromptSignIn` (DWORD 0/1)                     | 0: only a notification; 1 or not set: opens while no account is signed in (the e-mail field is filled in from the Windows sign-in name) |
 | Interface language            | `Language` (REG_SZ: `auto`, `en`, `pt-PT`)           | Forces the interface language; `auto` or not set follows the Windows display language. Read at start-up |
 
 "Do not allow users to quit" removes the user's ways to switch Claude Status off from its own
@@ -291,6 +297,8 @@ Command-line switches, useful for testing:
 | `--open-details` / `--open-stats` | Open the details flyout (Now / Stats tab) at start |
 | `--open-about`                 | Open the About window at start                 |
 | `--lang=en\|pt-PT`             | Interface language for this run (the `Language` policy wins) |
+| `--welcome`                     | Open the welcome tour (in the running copy, if there is one) |
+| `--sign-in`                     | Open the sign-in window (in the running copy, if there is one) |
 | `--quit`                        | Close the running copy (ignored under the `DisableExit` policy) |
 | `--selftest-network=FILE`       | One test request through the embedded browser; result in FILE |
 
