@@ -1,7 +1,7 @@
 # Claude Status – project rules
 
 Windows 10/11 taskbar and tray utility (C# .NET 8, WPF) showing Claude plan usage. Deployed by MSI
-(`installer/`, WiX v5) and managed through Group Policy (`policy/ClaudeStatus.admx` + `en-US/*.adml`).
+(`installer/`, WiX v5) and managed through Group Policy (`policy/ClaudeStatus.admx` + `en-US/*.adml`, `pt-PT/*.adml`).
 
 ## Group Policy check — required for every review, merge and release
 
@@ -17,9 +17,9 @@ The check:
 
 1. **Definitions match the code.** Every policy in `policy/ClaudeStatus.admx` has the same value name,
    registry type and value range as `src/ClaudeStatus/Policy.cs` reads (DWORD → `ReadDword`,
-   REG_SZ list → `ReadList`), under `SOFTWARE\Policies\ClaudeStatus` (HKLM before HKCU), and every
+   REG_SZ list → `ReadList`, REG_SZ enum → `ReadString`), under `SOFTWARE\Policies\ClaudeStatus` (HKLM before HKCU), and every
    value the code reads is defined in the ADMX.
-2. **Explanations are true.** Each `*_Help` string in `policy/en-US/ClaudeStatus.adml` describes what
+2. **Explanations are true.** Each `*_Help` string in `policy/*/ClaudeStatus.adml` (en-US and pt-PT, same meaning) describes what
    the code actually does (including "Disabled" / "Not configured"), and the policy table in
    `README.md` agrees.
 3. **Policies are enforced wherever the setting is used.** Behaviour goes through the `Effective*`
@@ -77,3 +77,10 @@ organisation id, never by label or e-mail. Changes touching these paths need a r
 
 - Never put personal information (names, e-mail addresses, company names, internal hosts) in the repo.
 - Releases are only made on purpose (see README, "Versions and releases").
+
+## Languages
+
+- UI is English and Portuguese (Portugal), in `src/ClaudeStatus/Strings.cs` (`L.*`); never hard-code
+  user-visible text elsewhere. Language: `Language` policy, else Windows display language (`pt-*` → PT-PT).
+- PT-PT follows Microsoft Windows terminology (Iniciar sessão, área de notificação, Ativado/Desativado).
+- Every ADML string exists in every language folder (`check_policy.py` enforces the ids).

@@ -44,7 +44,7 @@ public sealed class DetailsWindow : Window
         SizeToContent = SizeToContent.WidthAndHeight;
         FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI");
         Foreground = new SolidColorBrush(fg);
-        Title = "Claude usage";
+        Title = L.UsageTitle;
 
         Button Make(string text, RoutedEventHandler click)
         {
@@ -53,10 +53,10 @@ public sealed class DetailsWindow : Window
             return b;
         }
         var buttons = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
-        buttons.Children.Add(Make("Refresh", async (_, _) => await _monitor.RefreshAsync()));
-        buttons.Children.Add(Make("Usage page", (_, _) => TrayController.OpenUsagePage()));
+        buttons.Children.Add(Make(L.Refresh, async (_, _) => await _monitor.RefreshAsync()));
+        buttons.Children.Add(Make(L.UsagePage, (_, _) => TrayController.OpenUsagePage()));
         Button? account = null;
-        account = Make("Account ▾", (_, _) =>
+        account = Make(L.AccountMenu, (_, _) =>
         {
             // Opens the full app menu (accounts, organisation, settings) under the button.
             var p = account!.PointToScreen(new Point(0, account.ActualHeight));
@@ -65,7 +65,7 @@ public sealed class DetailsWindow : Window
         });
         buttons.Children.Add(account);
         if (!Policy.Current.DisableExit) // administrators can remove the user's way to quit
-            buttons.Children.Add(Make("Quit", (_, _) => { Close(); quit(); }));
+            buttons.Children.Add(Make(L.QuitShort, (_, _) => { Close(); quit(); }));
 
         var outer = new StackPanel();
         outer.Children.Add(_body);
@@ -102,7 +102,7 @@ public sealed class DetailsWindow : Window
         if (store is not null)
         {
             var tabs = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(12, 0, 0, 0) };
-            foreach (var (stats, label) in new[] { (false, "Now"), (true, "Stats") })
+            foreach (var (stats, label) in new[] { (false, L.TabNow), (true, L.TabStats) })
             {
                 var t = new ToggleButton { Content = label, IsChecked = _stats == stats, Padding = new Thickness(10, 1, 10, 1), Margin = new Thickness(2, 0, 0, 0) };
                 t.Click += (_, _) => { _stats = stats; Rerender(); };
@@ -113,7 +113,7 @@ public sealed class DetailsWindow : Window
         }
         head.Children.Add(new TextBlock
         {
-            Text = "Claude usage" + (string.IsNullOrEmpty(_monitor.AccountLabel) ? "" : " · " + _monitor.AccountLabel),
+            Text = L.UsageTitle + (string.IsNullOrEmpty(_monitor.AccountLabel) ? "" : " · " + _monitor.AccountLabel),
             FontSize = 14,
             FontWeight = FontWeights.SemiBold,
             VerticalAlignment = VerticalAlignment.Center,
@@ -126,11 +126,11 @@ public sealed class DetailsWindow : Window
             return;
         }
         if (!string.IsNullOrEmpty(snap?.OrganizationName) && snap!.OrganizationName != _monitor.AccountLabel)
-            _body.Children.Add(new TextBlock { Text = "Organization: " + snap.OrganizationName, FontSize = 11, Opacity = 0.7, Margin = new Thickness(0, -6, 0, 8) });
+            _body.Children.Add(new TextBlock { Text = L.OrganizationNamed(snap.OrganizationName), FontSize = 11, Opacity = 0.7, Margin = new Thickness(0, -6, 0, 8) });
 
         if (snap is null)
         {
-            _body.Children.Add(new TextBlock { Text = _monitor.Message ?? "No data yet.", TextWrapping = TextWrapping.Wrap, MaxWidth = 300 });
+            _body.Children.Add(new TextBlock { Text = _monitor.Message ?? L.NoDataYet, TextWrapping = TextWrapping.Wrap, MaxWidth = 300 });
             return;
         }
 
@@ -165,8 +165,8 @@ public sealed class DetailsWindow : Window
                 });
             _body.Children.Add(bar);
 
-            var reset = w.ResetsAt is { } r ? $" · resets in {Theme.Countdown(r)} ({r.ToLocalTime():ddd HH:mm})" : "";
-            _body.Children.Add(new TextBlock { Text = $"{w.Percent:0}% used{reset}", FontSize = 11, Opacity = 0.7, Margin = new Thickness(0, 3, 0, 0) });
+            var reset = w.ResetsAt is { } r ? $" · {L.ResetsIn(Theme.Countdown(r))} ({r.ToLocalTime():ddd HH:mm})" : "";
+            _body.Children.Add(new TextBlock { Text = L.Used(w.Percent) + reset, FontSize = 11, Opacity = 0.7, Margin = new Thickness(0, 3, 0, 0) });
             if (pace is { } p2)
                 _body.Children.Add(new TextBlock { Text = p2.Text, FontSize = 10, Opacity = 0.55 });
 
@@ -177,7 +177,7 @@ public sealed class DetailsWindow : Window
             }
         }
 
-        var footer = $"Updated {snap.FetchedAt:HH:mm:ss}";
+        var footer = L.Updated(snap.FetchedAt, "HH:mm:ss");
         if (_monitor.State == MonitorState.Error) footer += " – " + _monitor.Message;
         _body.Children.Add(new TextBlock { Text = footer, FontSize = 10, Opacity = 0.55, Margin = new Thickness(0, 10, 0, 0), TextWrapping = TextWrapping.Wrap, MaxWidth = 300 });
     }
@@ -220,7 +220,7 @@ public sealed class DetailsWindow : Window
         var dialog = new Microsoft.Win32.SaveFileDialog
         {
             FileName = $"claude-usage-{DateTime.Now:yyyy-MM-dd}.csv",
-            Filter = "CSV file (*.csv)|*.csv",
+            Filter = L.CsvFilter,
         };
         _closing = true; // the dialog deactivates the flyout; keep it open
         try
@@ -230,7 +230,7 @@ public sealed class DetailsWindow : Window
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {
             // E.g. the file is open in Excel or the folder is read-only: tell the user, don't crash.
-            MessageBox.Show(this, "The file could not be saved: " + ex.Message, "Claude Status", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, L.SaveFailed(ex.Message), "Claude Status", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
         {
@@ -244,7 +244,7 @@ public sealed class DetailsWindow : Window
         _closing = true;
         try
         {
-            if (MessageBox.Show(this, "Delete the usage history of this account and organization?", "Claude Status",
+            if (MessageBox.Show(this, L.ClearHistoryConfirm, "Claude Status",
                     MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
             {
                 store.Clear();

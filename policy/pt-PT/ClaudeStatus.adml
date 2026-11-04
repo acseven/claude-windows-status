@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policyDefinitionResources xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                           xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                           revision="1.0" schemaVersion="1.0"
+                           xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions">
+  <displayName>Claude Status</displayName>
+  <description>Definições do utilitário Claude Status para a barra de tarefas.</description>
+  <resources>
+    <stringTable>
+      <string id="SUPPORTED_Win10">Windows 10 ou posterior</string>
+      <string id="Cat_ClaudeStatus">Claude Status</string>
+      <string id="RefreshMinutes">Intervalo de atualização</string>
+      <string id="RefreshMinutes_Help">Frequência, em minutos (1–60), com que o Claude Status verifica a utilização no claude.ai. Quando definido, os utilizadores não o podem alterar.</string>
+      <string id="WidgetStyle">Apresentação na barra de tarefas</string>
+      <string id="WidgetStyle_Help">Barras: widget na barra de tarefas visível, em duas linhas (sessão de 5 horas e limite de 7 dias). Compacto: widget na barra de tarefas visível, numa linha. Apenas ícones na área de notificação: sem widget na barra de tarefas. Quando definido, os utilizadores não podem ativar ou desativar o widget nem alterar o respetivo esquema. Os dois ícones na área de notificação continuam sob o controlo do utilizador (pelo menos um entre o widget e os ícones está sempre visível). O widget só aparece onde couber entre os botões da barra de tarefas e a área de notificação.</string>
+      <string id="Style_Bars">Barras (duas linhas)</string>
+      <string id="Style_Compact">Compacto (uma linha)</string>
+      <string id="Style_IconOnly">Apenas ícone na área de notificação</string>
+      <string id="DisableNotifications">Desativar as notificações de limite</string>
+      <string id="DisableNotifications_Help">Ativado: sem notificações do Windows quando os limites atingem 70/90/100%. Desativado: as notificações estão sempre ativas. Não Configurado: os utilizadores decidem.</string>
+      <string id="DisableUsageHistory">Desativar o histórico de utilização</string>
+      <string id="DisableUsageHistory_Help">Ativado: o Claude Status não regista histórico de utilização, elimina o histórico já guardado para todas as contas do utilizador (para cada utilizador do Windows, da próxima vez que o Claude Status for executado para esse utilizador) e oculta o separador Estatísticas, as linhas de tendência e as previsões; os utilizadores não podem ativar o histórico. Desativado ou Não Configurado: os utilizadores decidem (o histórico está ativo por predefinição). O histórico é guardado apenas no computador, por utilizador do Windows, conta e organização: amostras de utilização durante 14 dias e um resumo por dia durante cerca de 400 dias. Nunca contém sessões, endereços de e-mail nem conteúdo de conversas.</string>
+      <string id="DisableExit">Não permitir que os utilizadores saiam do Claude Status</string>
+      <string id="DisableExit_Help">Ativado: o comando Sair do menu fica indisponível e o botão Sair é removido da janela de detalhes, "ClaudeStatus.exe --quit" é ignorado e um pedido de fecho simples (por exemplo, "taskkill" sem /f) é ignorado, pelo que os utilizadores não podem desligar o Claude Status a partir da própria interface. O Claude Status fecha na mesma quando o Windows termina sessão, encerra ou reinicia, quando o instalador o atualiza ou remove e quando é iniciada uma versão diferente do Claude Status que o substitui. Isto não impede um utilizador de terminar o processo com o Gestor de Tarefas ou "taskkill /f"; restrinja isso separadamente, se necessário. É uma salvaguarda para os utilizadores, não um limite de segurança. Desativado ou Não Configurado: os utilizadores podem sair.</string>
+      <string id="AllowedEmailDomains">Domínios de e-mail de conta permitidos</string>
+      <string id="AllowedEmailDomains_Help">Só podem ser utilizadas contas Claude cujo endereço de e-mail termine num destes domínios, por exemplo: example.com; example.org. As outras contas são recusadas e a sessão guardada é eliminada. Se não for possível ler o endereço de e-mail, a conta é recusada. Não Configurado: qualquer conta.</string>
+      <string id="AllowedOrganizations">Organizações Claude permitidas</string>
+      <string id="AllowedOrganizations_Help">Só podem ser acompanhados estes IDs de organização Claude (UUIDs, separados por ";"). As contas sem nenhum deles são recusadas e a sessão guardada é eliminada. Não Configurado: qualquer organização.</string>
+      <string id="Language">Idioma da interface</string>
+      <string id="Language_Help">Define o idioma da interface do Claude Status (menus, janelas, notificações e mensagens). Seguir o Windows: português quando o idioma de apresentação do Windows for qualquer variante de português, inglês nos restantes casos. Inglês ou Português (Portugal): esse idioma para todos os utilizadores, seja qual for o idioma de apresentação do Windows. As datas e horas utilizam sempre o formato regional do utilizador. A página de início de sessão é do claude.ai e segue o idioma do próprio claude.ai. Entra em vigor da próxima vez que o Claude Status for iniciado. Desativado ou Não Configurado: segue o Windows.</string>
+      <string id="Language_Auto">Seguir o idioma de apresentação do Windows</string>
+      <string id="Language_En">Inglês</string>
+      <string id="Language_PtPT">Português (Portugal)</string>
+      <string id="ShowWelcomeTour">Mostrar o guia de boas-vindas</string>
+      <string id="ShowWelcomeTour_Help">Ativado ou Não Configurado: da primeira vez que o Claude Status é iniciado sem nenhuma conta Claude com sessão iniciada, abre o guia de boas-vindas, uma vez por utilizador do Windows. O guia explica as barras na barra de tarefas e os ícones na área de notificação (incluindo os ícones ocultos em "Mostrar ícones ocultos"), e o último passo abre a janela de início de sessão. Desativado: o guia nunca abre sozinho. Os utilizadores podem sempre abri-lo a partir do menu (Guia de boas-vindas…) ou com "ClaudeStatus.exe --welcome".</string>
+      <string id="PromptSignIn">Abrir a janela de início de sessão no arranque</string>
+      <string id="PromptSignIn_Help">Ativado ou Não Configurado: enquanto não houver nenhuma conta Claude com sessão iniciada, o Claude Status abre a janela de início de sessão quando é iniciado. Da primeira vez, abre em vez disso o guia de boas-vindas (ver "Mostrar o guia de boas-vindas"), cujo último passo abre a janela de início de sessão. Desativado: o Claude Status apenas mostra uma notificação a pedir ao utilizador que inicie sessão. "ClaudeStatus.exe --sign-in" abre sempre a janela de início de sessão. Quando o nome de início de sessão do Windows (nome principal de utilizador) é um endereço de e-mail, e é permitido por "Domínios de e-mail de conta permitidos" se essa política estiver definida, é preenchido no campo de e-mail da página de início de sessão do claude.ai; os utilizadores podem alterá-lo, e nada é enviado até continuarem.</string>
+    </stringTable>
+    <presentationTable>
+      <presentation id="RefreshMinutes">
+        <decimalTextBox refId="RefreshMinutes" defaultValue="2">Minutos:</decimalTextBox>
+      </presentation>
+      <presentation id="WidgetStyle">
+        <dropdownList refId="WidgetStyle" defaultItem="0">Apresentação:</dropdownList>
+      </presentation>
+      <presentation id="AllowedEmailDomains">
+        <textBox refId="AllowedEmailDomains"><label>Domínios (separados por ;):</label></textBox>
+      </presentation>
+      <presentation id="AllowedOrganizations">
+        <textBox refId="AllowedOrganizations"><label>IDs de organização (separados por ;):</label></textBox>
+      </presentation>
+      <presentation id="Language">
+        <dropdownList refId="Language" defaultItem="0">Idioma:</dropdownList>
+      </presentation>
+    </presentationTable>
+  </resources>
+</policyDefinitionResources>

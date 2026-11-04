@@ -72,15 +72,14 @@ public sealed class Notifier
 
     static string Title(string key, int level)
     {
-        var name = key == "five_hour" ? "Claude session limit (5h)" : "Claude weekly limit (7d)";
-        return level >= 100 ? $"{name} reached" : $"{name} at {level}%";
+        return L.AlertTitle(key, level);
     }
 
     static string Body(LimitWindow w, int level)
     {
-        var when = w.ResetsAt is { } r ? $"{Theme.Countdown(r)} ({r.ToLocalTime():ddd HH:mm})" : "unknown";
+        var when = w.ResetsAt is { } r ? $"{Theme.Countdown(r)} ({r.ToLocalTime():ddd HH:mm})" : L.Unknown;
         return level >= 100
-            ? $"Usage is paused until the limit resets in {when}."
-            : $"{w.Percent:0}% used. Resets in {when}.";
+            ? L.AlertPaused(when)
+            : L.AlertUsed(w.Percent, when);
     }
 }

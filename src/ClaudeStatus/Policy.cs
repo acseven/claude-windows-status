@@ -11,9 +11,13 @@ namespace ClaudeStatus;
 /// sign-out/shutdown, the installer and a different version taking over still close the app.
 /// AllowedEmailDomains / AllowedOrganizations restrict which Claude accounts and organisations may be
 /// used (fail closed: an account whose e-mail cannot be read is refused when domains are set).
+/// Language ("en" / "pt-PT") forces the interface language, read once at start-up.
+/// ShowWelcomeTour = 0 never opens the welcome tour by itself; PromptSignIn = 0 only notifies (instead of
+/// opening the sign-in window) at start-up while no account is signed in.
 /// </summary>
 public sealed record Policy(int? RefreshMinutes, WidgetStyle? WidgetStyle, bool? DisableNotifications,
-    string[]? AllowedEmailDomains, string[]? AllowedOrganizations, bool DisableUsageHistory, bool DisableExit)
+    string[]? AllowedEmailDomains, string[]? AllowedOrganizations, bool DisableUsageHistory, bool DisableExit, string? Language,
+    bool? ShowWelcomeTour, bool? PromptSignIn)
 {
     const string KeyPath = @"SOFTWARE\Policies\ClaudeStatus";
 
@@ -38,6 +42,8 @@ public sealed record Policy(int? RefreshMinutes, WidgetStyle? WidgetStyle, bool?
         var noNotify = ReadDword("DisableNotifications");
         var noHistory = ReadDword("DisableUsageHistory");
         var noExit = ReadDword("DisableExit");
+        var tour = ReadDword("ShowWelcomeTour");
+        var prompt = ReadDword("PromptSignIn");
         return new Policy(
             refresh is int r ? Math.Clamp(r, 1, 60) : null,
             style is int s && Enum.IsDefined(typeof(WidgetStyle), s) ? (WidgetStyle)s : null,
@@ -45,7 +51,10 @@ public sealed record Policy(int? RefreshMinutes, WidgetStyle? WidgetStyle, bool?
             ReadList("AllowedEmailDomains")?.Select(d => d.TrimStart('@')).ToArray(),
             ReadList("AllowedOrganizations"),
             noHistory is int h && h != 0,
-            noExit is int x && x != 0);
+            noExit is int x && x != 0,
+            ReadString("Language"),
+            tour is int t ? t != 0 : null,
+            prompt is int q ? q != 0 : null);
     }
 
     public bool AllowsEmail(string? email) =>
@@ -54,6 +63,17 @@ public sealed record Policy(int? RefreshMinutes, WidgetStyle? WidgetStyle, bool?
 
     public bool AllowsOrganization(string id) =>
         AllowedOrganizations is null || AllowedOrganizations.Contains(id, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>A REG_SZ value, trimmed; null when absent or empty.</summary>
+    static string? ReadString(string name)
+    {
+        foreach (var hive in new[] { Registry.LocalMachine, Registry.CurrentUser })
+        {
+            using var key = hive.OpenSubKey(KeyPath);
+            if (key?.GetValue(name) is string v && v.Trim().Length > 0) return v.Trim();
+        }
+        return null;
+    }
 
     /// <summary>A REG_SZ list separated by ';', ',' or spaces; null when absent or empty.</summary>
     static string[]? ReadList(string name)

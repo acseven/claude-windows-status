@@ -201,9 +201,9 @@ public sealed class TaskbarWidget : Window
             _status.Visibility = Visibility.Visible;
             _status.Text = _monitor.State switch
             {
-                MonitorState.SignedOut => "Claude · sign in",
+                MonitorState.SignedOut => L.WidgetSignIn,
                 MonitorState.Loading => "Claude · …",
-                _ => "Claude · offline",
+                _ => L.WidgetOffline,
             };
             ToolTip = _monitor.Message;
             return;
@@ -219,8 +219,8 @@ public sealed class TaskbarWidget : Window
         _dot.Fill = new SolidColorBrush(Theme.Level(worst));
         _line.Text = $"5h {Pct(snap.Session)} · 7d {Pct(snap.Weekly)}";
         ToolTip = _monitor.State == MonitorState.Error
-            ? $"Last update {snap.FetchedAt:t} – {_monitor.Message}"
-            : $"Updated {snap.FetchedAt:t}";
+            ? L.LastUpdate(snap.FetchedAt, _monitor.Message)
+            : L.Updated(snap.FetchedAt, "t");
         Opacity = _monitor.State == MonitorState.Error ? 0.6 : 1.0;
     }
 
@@ -369,7 +369,7 @@ public sealed class TaskbarWidget : Window
         readonly Border _track = new() { Width = TrackWidth, Height = 5, CornerRadius = new CornerRadius(2.5), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 4, 0) };
         readonly Border _fill = new() { Height = 5, CornerRadius = new CornerRadius(2.5), HorizontalAlignment = HorizontalAlignment.Left };
         readonly TextBlock _pct = new() { FontSize = 11, Width = 30, TextAlignment = TextAlignment.Right, FontWeight = FontWeights.SemiBold };
-        readonly TextBlock _reset = new() { FontSize = 10, Width = 44, Margin = new Thickness(5, 0, 0, 0), Opacity = 0.75, VerticalAlignment = VerticalAlignment.Center };
+        readonly TextBlock _reset = new() { FontSize = 10, Width = 50, Margin = new Thickness(5, 0, 0, 0), Opacity = 0.75, VerticalAlignment = VerticalAlignment.Center };
 
         public Row(string label)
         {
