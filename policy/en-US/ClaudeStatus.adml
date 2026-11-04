@@ -26,6 +26,11 @@
       <string id="AllowedEmailDomains_Help">Only Claude accounts whose e-mail address ends in one of these domains can be used, for example: example.com; example.org. Other accounts are refused and their stored session is deleted. If the e-mail address cannot be read, the account is refused. Not configured: any account.</string>
       <string id="AllowedOrganizations">Allowed Claude organizations</string>
       <string id="AllowedOrganizations_Help">Only these Claude organization IDs (UUIDs, separated by ";") can be tracked. Accounts with none of them are refused and their stored session is deleted. Not configured: any organization.</string>
+      <string id="Language">Interface language</string>
+      <string id="Language_Help">Sets the language of the Claude Status interface (menus, windows, notifications and messages). Follow Windows: Portuguese when the Windows display language is any Portuguese, English otherwise. English or Portuguese (Portugal): that language for every user, whatever the Windows display language. Dates and times always use the user's regional format. The sign-in page itself is claude.ai's and follows claude.ai's own language. Takes effect the next time Claude Status starts. Disabled or Not configured: follow Windows.</string>
+      <string id="Language_Auto">Follow the Windows display language</string>
+      <string id="Language_En">English</string>
+      <string id="Language_PtPT">Portuguese (Portugal)</string>
     </stringTable>
     <presentationTable>
       <presentation id="RefreshMinutes">
@@ -39,6 +44,9 @@
       </presentation>
       <presentation id="AllowedOrganizations">
         <textBox refId="AllowedOrganizations"><label>Organization IDs (separated by ;):</label></textBox>
+      </presentation>
+      <presentation id="Language">
+        <dropdownList refId="Language" defaultItem="0">Language:</dropdownList>
       </presentation>
     </presentationTable>
   </resources>

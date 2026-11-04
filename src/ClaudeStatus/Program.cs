@@ -13,6 +13,8 @@ static class Program
     static void Main(string[] args)
     {
         var options = Options.Parse(args);
+        L.Init(Policy.Current.Language ?? options.Language); // the Language policy wins over --lang
+
         if (options.SelfTestFile is { } selfTest)
         {
             RunNetworkSelfTest(selfTest);
@@ -155,9 +157,10 @@ static class Program
 /// <summary>
 /// Command line: --demo[=alert] shows sample data without signing in, --style=bars|compact|icon
 /// overrides the display for this run, --open-details opens the flyout (used for screenshots),
-/// --open-stats opens it on the Stats tab, --open-about opens the About window, --quit closes a running copy.
+/// --open-stats opens it on the Stats tab, --open-about opens the About window, --quit closes a running copy,
+/// --lang=en|pt-PT sets the interface language for this run (unless the Language policy is set).
 /// </summary>
-sealed record Options(bool Demo, bool DemoAlert, WidgetStyle? Style, bool OpenDetails, bool Quit, string? SelfTestFile, bool OpenStats = false, bool OpenAbout = false)
+sealed record Options(bool Demo, bool DemoAlert, WidgetStyle? Style, bool OpenDetails, bool Quit, string? SelfTestFile, bool OpenStats = false, bool OpenAbout = false, string? Language = null)
 {
     public static Options Parse(string[] args)
     {
@@ -169,9 +172,10 @@ sealed record Options(bool Demo, bool DemoAlert, WidgetStyle? Style, bool OpenDe
             "icon" => WidgetStyle.IconOnly,
             _ => (WidgetStyle?)null,
         };
+        var lang = args.FirstOrDefault(a => a.StartsWith("--lang=", StringComparison.OrdinalIgnoreCase))?["--lang=".Length..];
         var selfTest = args.FirstOrDefault(a => a.StartsWith("--selftest-network=", StringComparison.OrdinalIgnoreCase))?["--selftest-network=".Length..];
         return new Options(Has("--demo") || Has("--demo=alert"), Has("--demo=alert"), style,
-            Has("--open-details") || Has("--open-stats"), Has("--quit"), selfTest, Has("--open-stats"), Has("--open-about"));
+            Has("--open-details") || Has("--open-stats"), Has("--quit"), selfTest, Has("--open-stats"), Has("--open-about"), lang);
     }
 }
 
@@ -223,7 +227,7 @@ sealed class Shell
         };
         BrowserFetcher.CloseRequested += OnCloseRequest;
         _notifier = new Notifier(_settings, _tray.Notify);
-        _monitor.AccountRefused += message => _tray.Notify("Claude account not allowed", message);
+        _monitor.AccountRefused += message => _tray.Notify(L.AccountNotAllowedTitle, message);
 
         _monitor.Changed += () =>
         {
@@ -249,7 +253,7 @@ sealed class Shell
         if (_options.OpenDetails) ShowDetails(_widget.Anchor);
         if (_options.OpenAbout) AboutWindow.ShowSingle();
         if (string.IsNullOrEmpty(_settings.SessionKey))
-            _tray.Notify("Claude Status", "Click here or the tray icon to sign in to your Claude account.");
+            _tray.Notify("Claude Status", L.SignInPrompt);
     }
 
     /// <summary>Signs in a Claude account in a clean browser profile and makes it the active one.</summary>

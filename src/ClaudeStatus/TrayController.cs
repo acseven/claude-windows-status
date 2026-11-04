@@ -17,25 +17,25 @@ public sealed class TrayController : IDisposable
     readonly Action _signIn;
     readonly Action<System.Windows.Point?> _showDetails;
     readonly Action _exit;
-    readonly WinForms.ToolStripMenuItem _quit = new("Quit Claude Status");
+    readonly WinForms.ToolStripMenuItem _quit = new(L.Quit);
 
     readonly WinForms.NotifyIcon _icon = new();       // 5h; also carries the notifications
     readonly WinForms.NotifyIcon _weeklyIcon = new(); // 7d
     readonly WinForms.ToolStripMenuItem _header = new() { Enabled = false };
-    readonly WinForms.ToolStripMenuItem _display = new("Display");
-    readonly WinForms.ToolStripMenuItem _showWidget = new("Taskbar widget");
-    readonly WinForms.ToolStripMenuItem _showSession = new("5-hour tray icon");
-    readonly WinForms.ToolStripMenuItem _showWeekly = new("7-day tray icon");
-    readonly WinForms.ToolStripMenuItem _bars = new("Widget: two rows") { Tag = WidgetStyle.Bars };
-    readonly WinForms.ToolStripMenuItem _compact = new("Widget: one line") { Tag = WidgetStyle.Compact };
+    readonly WinForms.ToolStripMenuItem _display = new(L.Display);
+    readonly WinForms.ToolStripMenuItem _showWidget = new(L.TaskbarWidget);
+    readonly WinForms.ToolStripMenuItem _showSession = new(L.SessionIcon);
+    readonly WinForms.ToolStripMenuItem _showWeekly = new(L.WeeklyIcon);
+    readonly WinForms.ToolStripMenuItem _bars = new(L.WidgetTwoRows) { Tag = WidgetStyle.Bars };
+    readonly WinForms.ToolStripMenuItem _compact = new(L.WidgetOneLine) { Tag = WidgetStyle.Compact };
     readonly System.Windows.Forms.Timer _hideAfterNotify = new() { Interval = 15_000 };
-    readonly WinForms.ToolStripMenuItem _interval = new("Refresh every");
-    readonly WinForms.ToolStripMenuItem _notify = new("Notifications");
-    readonly WinForms.ToolStripMenuItem _history = new("Usage history (Stats)");
-    readonly WinForms.ToolStripMenuItem _autostart = new("Start with Windows");
-    readonly WinForms.ToolStripMenuItem _account = new("Account");
-    readonly WinForms.ToolStripMenuItem _organization = new("Organization");
-    readonly WinForms.ToolStripMenuItem _signInTop = new("Sign in…");
+    readonly WinForms.ToolStripMenuItem _interval = new(L.RefreshEvery);
+    readonly WinForms.ToolStripMenuItem _notify = new(L.Notifications);
+    readonly WinForms.ToolStripMenuItem _history = new(L.History);
+    readonly WinForms.ToolStripMenuItem _autostart = new(L.StartWithWindows);
+    readonly WinForms.ToolStripMenuItem _account = new(L.Account);
+    readonly WinForms.ToolStripMenuItem _organization = new(L.Organization);
+    readonly WinForms.ToolStripMenuItem _signInTop = new(L.SignIn);
     readonly Dictionary<WinForms.NotifyIcon, IntPtr> _handles = new();
 
     public WinForms.ContextMenuStrip Menu { get; } = new();
@@ -61,7 +61,7 @@ public sealed class TrayController : IDisposable
         _display.DropDownItems.Add(new WinForms.ToolStripSeparator());
         _display.DropDownItems.Add(_bars);
         _display.DropDownItems.Add(_compact);
-        _display.DropDownItems.Add("Reset widget position", null, (_, _) => resetPosition());
+        _display.DropDownItems.Add(L.ResetWidgetPosition, null, (_, _) => resetPosition());
         _hideAfterNotify.Tick += (_, _) => { _hideAfterNotify.Stop(); ApplyIconVisibility(); };
 
         foreach (var minutes in new[] { 1, 2, 5, 10, 15 })
@@ -77,7 +77,7 @@ public sealed class TrayController : IDisposable
             if (_settings.HistoryEnabled)
             {
                 var answer = System.Windows.MessageBox.Show(
-                    "Turn off usage history? The history stored on this PC for all accounts is deleted.",
+                    L.HistoryOffConfirm,
                     "Claude Status", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Question);
                 if (answer != System.Windows.MessageBoxResult.Yes) return;
                 HistoryStore.DeleteAll();
@@ -91,9 +91,9 @@ public sealed class TrayController : IDisposable
 
         Menu.Items.Add(_header);
         Menu.Items.Add(new WinForms.ToolStripSeparator());
-        Menu.Items.Add("Show details", null, (_, _) => _showDetails(null));
-        Menu.Items.Add("Refresh now", null, async (_, _) => await _monitor.RefreshAsync());
-        Menu.Items.Add("Open usage page", null, (_, _) => OpenUsagePage());
+        Menu.Items.Add(L.ShowDetails, null, (_, _) => _showDetails(null));
+        Menu.Items.Add(L.RefreshNow, null, async (_, _) => await _monitor.RefreshAsync());
+        Menu.Items.Add(L.OpenUsagePage, null, (_, _) => OpenUsagePage());
         Menu.Items.Add(new WinForms.ToolStripSeparator());
         Menu.Items.Add(_display);
         Menu.ShowItemToolTips = true;
@@ -107,7 +107,7 @@ public sealed class TrayController : IDisposable
         Menu.Items.Add(_account);
         Menu.Items.Add(_organization);
         Menu.Items.Add(new WinForms.ToolStripSeparator());
-        Menu.Items.Add($"About Claude Status ({AboutWindow.Version})", null, (_, _) => AboutWindow.ShowSingle());
+        Menu.Items.Add(L.AboutMenu(AboutWindow.Version), null, (_, _) => AboutWindow.ShowSingle());
         _quit.Click += (_, _) => _exit();
         Menu.Items.Add(_quit);
         Menu.Opening += (_, _) => SyncMenu();
@@ -191,7 +191,7 @@ public sealed class TrayController : IDisposable
         _showWeekly.Checked = _settings.ShowWeeklyTrayIcon;
         _showWeekly.Enabled = !(last && _showWeekly.Checked);
         foreach (var item in new[] { _showWidget, _showSession, _showWeekly })
-            item.ToolTipText = item.Checked && !item.Enabled && last ? "At least one must stay on." : null;
+            item.ToolTipText = item.Checked && !item.Enabled && last ? L.OneMustStayOn : null;
         _bars.Checked = _settings.EffectiveStyle == WidgetStyle.Bars;
         _compact.Checked = _settings.EffectiveStyle == WidgetStyle.Compact;
         _bars.Enabled = _compact.Enabled = p.WidgetStyle is null && _settings.EffectiveShowWidget;
@@ -201,15 +201,15 @@ public sealed class TrayController : IDisposable
         _notify.Checked = _settings.EffectiveNotifications;
         _notify.Enabled = p.DisableNotifications is null;
         _quit.Enabled = !p.DisableExit;
-        _quit.Text = p.DisableExit ? "Quit Claude Status (not allowed by administrator)" : "Quit Claude Status";
+        _quit.Text = p.DisableExit ? L.QuitBlocked : L.Quit;
         _history.Checked = _settings.EffectiveHistory;
         _history.Enabled = !p.DisableUsageHistory;
-        _history.Text = p.DisableUsageHistory ? "Usage history (off by administrator)" : "Usage history (Stats)";
+        _history.Text = p.DisableUsageHistory ? L.HistoryBlocked : L.History;
 
         var machine = AutoStart.IsMachineEnabled();
         _autostart.Checked = machine || AutoStart.IsUserEnabled();
         _autostart.Enabled = !machine;
-        _autostart.Text = machine ? "Start with Windows (set by administrator)" : "Start with Windows";
+        _autostart.Text = machine ? L.StartWithWindowsByAdmin : L.StartWithWindows;
 
         SyncAccounts();
     }
@@ -230,14 +230,14 @@ public sealed class TrayController : IDisposable
             _account.DropDownItems.Add(item);
         }
         _account.DropDownItems.Add(new WinForms.ToolStripSeparator());
-        _account.DropDownItems.Add("Add another account…", null, (_, _) => _signIn());
+        _account.DropDownItems.Add(L.AddAccount, null, (_, _) => _signIn());
         if (_settings.Active is { } active)
         {
             if (_monitor.State == MonitorState.SignedOut)
-                _account.DropDownItems.Add("Sign in again…", null, (_, _) => _signIn());
-            _account.DropDownItems.Add($"Sign out of {active.Label}", null, (_, _) => _monitor.SignOutActive());
+                _account.DropDownItems.Add(L.SignInAgain, null, (_, _) => _signIn());
+            _account.DropDownItems.Add(L.SignOutOf(active.Label), null, (_, _) => _monitor.SignOutActive());
         }
-        _account.Text = _settings.Active is { } a ? $"Account: {a.Label}" : "Account";
+        _account.Text = _settings.Active is { } a ? L.AccountNamed(a.Label) : L.Account;
 
         var orgs = _monitor.Organizations;
         _organization.Visible = orgs.Count > 1;
@@ -269,17 +269,17 @@ public sealed class TrayController : IDisposable
         var weekly = snap?.Weekly;
 
         _header.Text = snap is null
-            ? "Claude – " + (_monitor.Message ?? "no data")
+            ? "Claude – " + (_monitor.Message ?? L.NoData)
             : $"Claude – 5h {Pct(session)} · 7d {Pct(weekly)}";
 
-        SetTip(_icon, snap is null ? "Claude session (5h)\n" + (_monitor.Message ?? "") : Tip("Claude session (5h)", session));
-        SetTip(_weeklyIcon, snap is null ? "Claude weekly (7d)\n" + (_monitor.Message ?? "") : Tip("Claude weekly (7d)", weekly));
+        SetTip(_icon, snap is null ? L.SessionIconName + "\n" + (_monitor.Message ?? "") : Tip(L.SessionIconName, session));
+        SetTip(_weeklyIcon, snap is null ? L.WeeklyIconName + "\n" + (_monitor.Message ?? "") : Tip(L.WeeklyIconName, weekly));
         SetIcon(_icon, session, outlined: false);
         SetIcon(_weeklyIcon, weekly, outlined: true);
     }
 
     static string Tip(string name, LimitWindow? w) =>
-        w is null ? $"{name}\nno data" : $"{name}\n{w.Percent:0}% used · resets in {Theme.Countdown(w.ResetsAt)}";
+        w is null ? $"{name}\n{L.NoData}" : $"{name}\n{L.Used(w.Percent)} · {L.ResetsIn(Theme.Countdown(w.ResetsAt))}";
 
     static void SetTip(WinForms.NotifyIcon icon, string tip) => icon.Text = tip.Length > 127 ? tip[..127] : tip;
 

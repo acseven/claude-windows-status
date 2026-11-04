@@ -36,7 +36,7 @@ public sealed class UsageClient : IDisposable
     {
         using var doc = await GetJsonAsync("/api/organizations", sessionKey, ct);
         if (doc.RootElement.ValueKind != JsonValueKind.Array)
-            throw new HttpRequestException("claude.ai returned an unexpected response. Will retry.");
+            throw new HttpRequestException(L.ErrUnexpected);
         return doc.RootElement.EnumerateArray()
             .Where(o => o.TryGetProperty("uuid", out var u) && u.ValueKind == JsonValueKind.String)
             .Select(o => new Organization(
@@ -62,7 +62,7 @@ public sealed class UsageClient : IDisposable
         {
             using var doc = await GetJsonAsync("/api/account", sessionKey, ct);
             if (doc.RootElement.ValueKind != JsonValueKind.Object)
-                throw new HttpRequestException("claude.ai returned an unexpected response. Will retry.");
+                throw new HttpRequestException(L.ErrUnexpected);
             foreach (var name in new[] { "email_address", "email" })
                 if (doc.RootElement.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(v.GetString()))
                     return v.GetString();
@@ -123,11 +123,11 @@ public sealed class UsageClient : IDisposable
 
     static string LabelFor(string key) => key switch
     {
-        "five_hour" => "Current session (5h)",
-        "seven_day" => "Weekly – all models",
-        "seven_day_opus" => "Weekly – Opus",
-        "seven_day_sonnet" => "Weekly – Sonnet",
-        "extra_usage" => "Extra usage",
+        "five_hour" => L.LimitLabel(key),
+        "seven_day" => L.LimitLabel(key),
+        "seven_day_opus" => L.LimitLabel(key),
+        "seven_day_sonnet" => L.LimitLabel(key),
+        "extra_usage" => L.LimitLabel(key),
         _ => CultureInfo.InvariantCulture.TextInfo.ToTitleCase(key.Replace('_', ' ')),
     };
 
@@ -136,27 +136,27 @@ public sealed class UsageClient : IDisposable
         var (status, body) = await _browser.GetAsync(path, sessionKey, ct);
 
         if (status == 0)
-            throw new HttpRequestException("Could not reach claude.ai: " + body);
+            throw new HttpRequestException(L.ErrUnreachable(body));
         if (status == 401)
-            throw new AuthException("Session expired – sign in again.");
+            throw new AuthException(L.ErrExpired);
         if (status == 403)
         {
             // An HTML 403 is a Cloudflare challenge, a JSON 403 is a rejected session.
-            if (body.TrimStart().StartsWith('{')) throw new AuthException("Session rejected – sign in again.");
+            if (body.TrimStart().StartsWith('{')) throw new AuthException(L.ErrRejected);
             _browser.RenewClearance();
-            throw new HttpRequestException("claude.ai is asking for a browser check (Cloudflare). Will retry.");
+            throw new HttpRequestException(L.ErrCloudflare);
         }
         if (status == 429)
-            throw new HttpRequestException("Rate limited by claude.ai. Will retry.");
+            throw new HttpRequestException(L.ErrRateLimited);
         if (status is < 200 or > 299)
-            throw new HttpRequestException($"claude.ai returned HTTP {status}.", null, (HttpStatusCode)status);
+            throw new HttpRequestException(L.ErrHttp(status), null, (HttpStatusCode)status);
 
         // A 200 that is not JSON (captive portal, proxy, maintenance or Cloudflare page) is transient:
         // never let it read as "empty", which a tenancy policy could turn into a refusal.
         try { return JsonDocument.Parse(body); }
         catch (JsonException)
         {
-            throw new HttpRequestException("claude.ai returned an unexpected (non-JSON) response. Will retry.");
+            throw new HttpRequestException(L.ErrNonJson);
         }
     }
 

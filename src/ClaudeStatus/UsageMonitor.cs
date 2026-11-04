@@ -62,9 +62,9 @@ public sealed class UsageMonitor : IDisposable
         var now = DateTimeOffset.Now;
         Last = new UsageSnapshot(
         [
-            new("five_hour", "Current session (5h)", alert ? 92 : 42, now.AddMinutes(alert ? 65 : 130)),
-            new("seven_day", "Weekly – all models", alert ? 74 : 18, now.AddDays(4).AddHours(6)),
-            new("seven_day_opus", "Weekly – Opus", alert ? 95 : 74, now.AddDays(4).AddHours(6)),
+            new("five_hour", L.LimitLabel("five_hour"), alert ? 92 : 42, now.AddMinutes(alert ? 65 : 130)),
+            new("seven_day", L.LimitLabel("seven_day"), alert ? 74 : 18, now.AddDays(4).AddHours(6)),
+            new("seven_day_opus", L.LimitLabel("seven_day_opus"), alert ? 95 : 74, now.AddDays(4).AddHours(6)),
         ], "Demo", "demo", now);
         Set(MonitorState.Ok, null);
     }
@@ -114,7 +114,7 @@ public sealed class UsageMonitor : IDisposable
         {
             Last = null;
             Organizations = [];
-            Set(MonitorState.SignedOut, account is null ? "Not signed in." : "Session expired – sign in again.");
+            Set(MonitorState.SignedOut, account is null ? L.NotSignedIn : L.ErrExpired);
             return;
         }
 
@@ -123,7 +123,7 @@ public sealed class UsageMonitor : IDisposable
         var generation = ++_generation;
         bool Stale() => generation != _generation || _settings.Active != account;
 
-        if (Last is null) Set(MonitorState.Loading, "Loading…");
+        if (Last is null) Set(MonitorState.Loading, L.Loading);
 
         var ok = false;
         try
@@ -135,8 +135,8 @@ public sealed class UsageMonitor : IDisposable
                 _settings.Save();
                 // Other saved accounts were deleted with their history: tell the user.
                 AccountRefused?.Invoke(removed.Count == 1
-                    ? $"{removed[0].Label} is not allowed by your administrator and was removed."
-                    : $"{string.Join(", ", removed.Select(a => a.Label))} are not allowed by your administrator and were removed.");
+                    ? L.AccountRemoved(removed[0].Label)
+                    : L.AccountsRemoved(string.Join(", ", removed.Select(a => a.Label))));
             }
             if (!_settings.InMemoryOnly) HistoryStore.DeleteDisallowedOrganizations(policy);
             ApplyInterval(); // picks up a RefreshMinutes policy changed while running
@@ -148,15 +148,15 @@ public sealed class UsageMonitor : IDisposable
                 var email = await _client.GetAccountLabelAsync(key, cts.Token);
                 if (Stale()) return;
                 if (!policy.AllowsEmail(email))
-                    throw new PolicyException($"{email ?? "This account"} is not allowed by your administrator.");
+                    throw new PolicyException(L.EmailNotAllowed(email));
 
                 var orgs = await _client.GetOrganizationsAsync(key, cts.Token);
                 if (Stale()) return;
                 // No organisations at all is not a policy decision: keep the account (signed out), don't delete it.
-                if (orgs.Count == 0) throw new AuthException("This account has no Claude organizations.");
+                if (orgs.Count == 0) throw new AuthException(L.NoOrganizations);
                 var allowed = orgs.Where(o => policy.AllowsOrganization(o.Id)).ToList();
                 if (allowed.Count == 0)
-                    throw new PolicyException("None of this account's organizations are allowed by your administrator.");
+                    throw new PolicyException(L.NoOrganizationAllowed);
 
                 _settings.SetActiveIdentity(email, account.Label);
                 var org = UsageClient.Pick(allowed, account.OrganizationId);

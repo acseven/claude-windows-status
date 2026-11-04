@@ -25,7 +25,7 @@ public sealed class LoginWindow : Window
 
     public LoginWindow()
     {
-        Title = "Sign in to Claude";
+        Title = L.SignInTitle;
         Width = 480;
         Height = 720;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
@@ -42,7 +42,7 @@ public sealed class LoginWindow : Window
             catch (Exception ex)
             {
                 if (_closed) return;
-                MessageBox.Show(this, "Microsoft Edge WebView2 Runtime is required.\n\n" + ex.Message, Title,
+                MessageBox.Show(this, L.WebView2Required + "\n\n" + ex.Message, Title,
                     MessageBoxButton.OK, MessageBoxImage.Error);
                 Close();
                 return;

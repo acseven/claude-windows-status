@@ -99,7 +99,7 @@ public sealed class BrowserFetcher : IDisposable
                     {
                         // No answer: usually the page navigated away (Cloudflare check). Reload next time.
                         _reload = true;
-                        throw new HttpRequestException("claude.ai did not answer in time. Will retry.");
+                        throw new HttpRequestException(L.ErrTimeout);
                     }
                 }
             }
@@ -137,7 +137,7 @@ public sealed class BrowserFetcher : IDisposable
         // WebView2 needs a real window; keep it off-screen, out of the taskbar and Alt-Tab.
         _host = new Window
         {
-            Title = "Claude Status (network)",
+            Title = L.NetworkWindowTitle,
             WindowStyle = WindowStyle.None,
             ResizeMode = ResizeMode.NoResize,
             ShowInTaskbar = false,

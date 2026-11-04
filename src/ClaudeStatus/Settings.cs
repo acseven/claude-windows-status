@@ -64,7 +64,7 @@ public sealed class Settings
         var i = Accounts.FindIndex(a => a.SessionKey == sessionKey);
         if (i < 0)
         {
-            Accounts.Add(new SavedAccount { Label = $"Account {Accounts.Count + 1}", ProtectedSessionKey = Protect(sessionKey) });
+            Accounts.Add(new SavedAccount { Label = L.AccountN(Accounts.Count + 1), ProtectedSessionKey = Protect(sessionKey) });
             i = Accounts.Count - 1;
         }
         ActiveAccount = i;
@@ -178,7 +178,7 @@ public sealed class Settings
                 if (!s.EffectiveShowWidget && !s.ShowSessionTrayIcon && !s.ShowWeeklyTrayIcon)
                     s.ShowSessionTrayIcon = true;
                 if (s.ProtectedSessionKey is { } legacy && s.Accounts.Count == 0)
-                    s.Accounts.Add(new SavedAccount { Label = "Account 1", ProtectedSessionKey = legacy, OrganizationId = s.OrganizationId });
+                    s.Accounts.Add(new SavedAccount { Label = L.AccountN(1), ProtectedSessionKey = legacy, OrganizationId = s.OrganizationId });
                 s.ProtectedSessionKey = null;
                 s.OrganizationId = null;
                 return s;

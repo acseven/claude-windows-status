@@ -24,7 +24,7 @@ public static class StatsView
         {
             root.Children.Add(new TextBlock
             {
-                Text = "No history yet. It builds up while Claude Status runs.",
+                Text = L.NoHistory,
                 TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 4),
             });
             root.Children.Add(Buttons(export, clear, enabled: false));
@@ -37,7 +37,7 @@ public static class StatsView
         // Title + range switch.
         var head = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
         var switcher = new StackPanel { Orientation = Orientation.Horizontal };
-        foreach (var (key, label) in new[] { (Days14, "14 days"), (Month, "Month"), (Year, "Year") })
+        foreach (var (key, label) in new[] { (Days14, L.Range14Days), (Month, L.RangeMonth), (Year, L.RangeYear) })
         {
             var b = new ToggleButton { Content = label, IsChecked = key == range, Padding = new Thickness(10, 2, 10, 2), Margin = new Thickness(2, 0, 0, 0) };
             b.Click += (_, _) => setRange(key);
@@ -76,7 +76,7 @@ public static class StatsView
         root.Children.Add(new TextBlock { Text = chart.Note, FontSize = 10, Foreground = muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 12) });
 
         // Heat map: weekday × hour over the selected range.
-        root.Children.Add(new TextBlock { Text = "When you use Claude", FontSize = 12, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
+        root.Children.Add(new TextBlock { Text = L.WhenYouUse, FontSize = 12, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
         root.Children.Add(HeatMap(store.Days(chart.From, chart.To).ToList(), muted, track));
 
         // Records.
@@ -96,9 +96,9 @@ public static class StatsView
     static UIElement Buttons(Action export, Action clear, bool enabled)
     {
         var p = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0) };
-        var e = new Button { Content = "Export CSV…", Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(0, 0, 6, 0), IsEnabled = enabled };
+        var e = new Button { Content = L.ExportCsv, Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(0, 0, 6, 0), IsEnabled = enabled };
         e.Click += (_, _) => export();
-        var c = new Button { Content = "Clear history", Padding = new Thickness(10, 3, 10, 3), IsEnabled = enabled };
+        var c = new Button { Content = L.ClearHistory, Padding = new Thickness(10, 3, 10, 3), IsEnabled = enabled };
         c.Click += (_, _) => clear();
         p.Children.Add(e);
         p.Children.Add(c);
@@ -117,7 +117,10 @@ public static class StatsView
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(30) });
         for (var h = 0; h < 24; h++) grid.ColumnDefinitions.Add(new ColumnDefinition());
-        var names = CultureInfo.CurrentCulture.DateTimeFormat.AbbreviatedDayNames; // Sunday first
+        // Sunday first. Some cultures' "abbreviated" names are whole words (pt-PT: "segunda"); the
+        // 30px column fits three letters ("seg", "Mon").
+        var names = CultureInfo.CurrentCulture.DateTimeFormat.AbbreviatedDayNames
+            .Select(n => n.TrimEnd('.') is var t && t.Length > 3 ? t[..3] : t).ToArray();
         for (var r = 0; r < 7; r++)
         {
             grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(13) });
@@ -132,7 +135,7 @@ public static class StatsView
                     Margin = new Thickness(1),
                     CornerRadius = new CornerRadius(2),
                     Background = v == 0 ? empty : new SolidColorBrush(Color.FromArgb((byte)(50 + 205 * v / max), 0xD9, 0x77, 0x57)),
-                    ToolTip = $"{label.Text} {h:00}:00 – {v / 10.0:0.#}% added",
+                    ToolTip = L.HourAdded(label.Text, h, v / 10.0),
                 };
                 Grid.SetRow(cell, r);
                 Grid.SetColumn(cell, h + 1);
@@ -153,9 +156,9 @@ public static class StatsView
 
     static (double? Value, bool Red, string Tip) DayBar(HistoryStore.Day? d, DateOnly date) =>
         d is null
-            ? (null, false, $"{date:ddd d MMM}: no data")
+            ? (null, false, L.DayNoData($"{date:ddd d MMM}"))
             : (d.SessionPeak, d.SessionLimitHits.Count > 0,
-               $"{date:ddd d MMM}: session peak {d.SessionPeak:0}%" + (d.SessionLimitHits.Count > 0 ? $", limit hit {d.SessionLimitHits.Count}×" : ""));
+               L.DaySessionPeak($"{date:ddd d MMM}", d.SessionPeak, d.SessionLimitHits.Count));
 
     static Chart Days14Chart(HistoryStore store, DateOnly today)
     {
@@ -164,15 +167,15 @@ public static class StatsView
         var days = dates.Select(store.DayOf).ToList();
         var withData = days.Where(d => d is not null).ToList();
         return new Chart(
-            "Session peak per day – last 14 days",
-            "Highest 5-hour session usage each day. Red = limit reached.",
+            L.Chart14Title,
+            L.Chart14Note,
             from, today,
             dates.Select((d, i) => DayBar(days[i], d)).ToList(),
             new[] { 0, 3, 7, 10, 13 }.Select(i => dates[i].ToString("d MMM", CultureInfo.CurrentCulture)).ToList(),
             [
-                (withData.Sum(d => d!.SessionLimitHits.Count).ToString(), "session limits hit"),
-                (withData.Count == 0 ? "–" : $"{withData.Average(d => d!.SessionPeak):0}%", "average daily peak"),
-                (Streak(store, from, today), "longest streak without a limit"),
+                (withData.Sum(d => d!.SessionLimitHits.Count).ToString(), L.SessionLimitsHit),
+                (withData.Count == 0 ? "–" : $"{withData.Average(d => d!.SessionPeak):0}%", L.AverageDailyPeak),
+                (Streak(store, from, today), L.LongestStreak),
             ]);
     }
 
@@ -184,15 +187,15 @@ public static class StatsView
         var days = dates.Select(d => d > today ? null : store.DayOf(d)).ToList();
         var withData = days.Where(d => d is not null).ToList();
         return new Chart(
-            $"Session peak per day – {first.ToString("MMMM", CultureInfo.CurrentCulture)}",
-            "Calendar month; days still to come are empty.",
+            L.ChartMonthTitle(first.ToString("MMMM", CultureInfo.CurrentCulture)),
+            L.ChartMonthNote,
             first, today,
             dates.Select((d, i) => DayBar(days[i], d)).ToList(),
             new[] { 1, 8, 15, 22, count }.Select(n => n.ToString(CultureInfo.CurrentCulture)).ToList(),
             [
-                (withData.Sum(d => d!.SessionLimitHits.Count).ToString(), "session limits hit this month"),
-                (withData.Count == 0 ? "–" : $"{withData.Average(d => d!.WeeklyPeak):0}%", "average weekly usage"),
-                (Streak(store, first, today), "longest streak without a limit"),
+                (withData.Sum(d => d!.SessionLimitHits.Count).ToString(), L.SessionLimitsHitMonth),
+                (withData.Count == 0 ? "–" : $"{withData.Average(d => d!.WeeklyPeak):0}%", L.AverageWeeklyUsage),
+                (Streak(store, first, today), L.LongestStreak),
             ]);
     }
 
@@ -213,18 +216,18 @@ public static class StatsView
             var weeks = days.GroupBy(d => d.Date.AddDays(-(((int)d.Date.DayOfWeek + 6) % 7))).Select(g => g.Max(d => d.WeeklyPeak)).ToList();
             double? avg = weeks.Count == 0 ? null : weeks.Average();
             var name = m.ToString("MMM yyyy", CultureInfo.CurrentCulture);
-            bars.Add((avg, false, avg is null ? $"{name}: no data" : $"{name}: average weekly peak {avg:0}%, session limit hit {monthHits}×"));
+            bars.Add((avg, false, avg is null ? L.MonthNoData(name) : L.MonthSummary(name, avg.Value, monthHits)));
         }
         var busiest = activity.Where(a => a.Sum > 0).OrderByDescending(a => a.Sum).Select(a => a.Month.ToString("MMM", CultureInfo.CurrentCulture)).FirstOrDefault() ?? "–";
         return new Chart(
-            "Average weekly peak per month – last 12 months",
-            "Average of each week's highest weekly usage; amber/red = close to or over the weekly limit.",
+            L.ChartYearTitle,
+            L.ChartYearNote,
             firstMonth, today, bars,
             new[] { 0, 3, 6, 9, 11 }.Select(i => firstMonth.AddMonths(i).ToString("MMM", CultureInfo.CurrentCulture)).ToList(),
             [
-                (hits.ToString(), "session limits hit in 12 months"),
-                (busiest, "busiest month"),
-                (Streak(store, firstMonth, today), "longest streak without a limit"),
+                (hits.ToString(), L.SessionLimitsHitYear),
+                (busiest, L.BusiestMonth),
+                (Streak(store, firstMonth, today), L.LongestStreak),
             ],
             DayBased: false);
     }
@@ -240,6 +243,6 @@ public static class StatsView
             run = day.SessionLimitHits.Count == 0 ? run + 1 : 0;
             best = Math.Max(best, run);
         }
-        return best == 1 ? "1 day" : $"{best} days";
+        return L.DayCount(best);
     }
 }

@@ -59,7 +59,7 @@ public sealed class AboutWindow : Window
 
     AboutWindow()
     {
-        Title = "About Claude Status";
+        Title = L.AboutTitle;
         SizeToContent = SizeToContent.WidthAndHeight;
         ResizeMode = ResizeMode.NoResize;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
@@ -70,14 +70,14 @@ public sealed class AboutWindow : Window
         stack.Children.Add(new TextBlock { Text = "Claude Status", FontSize = 20, FontWeight = FontWeights.SemiBold });
         stack.Children.Add(new TextBlock
         {
-            Text = "Claude plan usage in the Windows taskbar and notification area.",
+            Text = L.AboutTagline,
             Margin = new Thickness(0, 4, 0, 14),
             TextWrapping = TextWrapping.Wrap,
             MaxWidth = 360,
         });
 
         var commit = Commit;
-        var versionLine = new TextBlock { Text = $"Version {Version}" + (commit is null ? "" : $"  (build {commit})") };
+        var versionLine = new TextBlock { Text = L.VersionLine(Version) + (commit is null ? "" : L.BuildSuffix(commit)) };
         stack.Children.Add(versionLine);
         stack.Children.Add(new TextBlock
         {
@@ -88,22 +88,22 @@ public sealed class AboutWindow : Window
 
         if (RepoUrl is { } repo)
         {
-            stack.Children.Add(Link("Project page and releases", repo));
-            stack.Children.Add(Link("License (MIT)", repo + "/blob/main/LICENSE"));
+            stack.Children.Add(Link(L.ProjectPage, repo));
+            stack.Children.Add(Link(L.LicenseLink, repo + "/blob/main/LICENSE"));
         }
         else
         {
-            stack.Children.Add(new TextBlock { Text = "Open source under the MIT License." });
+            stack.Children.Add(new TextBlock { Text = L.OpenSource });
         }
         stack.Children.Add(new TextBlock
         {
-            Text = "Not affiliated with or endorsed by Anthropic.",
+            Text = L.NotAffiliated,
             Foreground = Brushes.Gray,
             Margin = new Thickness(0, 14, 0, 0),
         });
 
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 18, 0, 0) };
-        var copy = new Button { Content = "Copy version", Padding = new Thickness(12, 3, 12, 3), Margin = new Thickness(0, 0, 8, 0) };
+        var copy = new Button { Content = L.CopyVersion, Padding = new Thickness(12, 3, 12, 3), Margin = new Thickness(0, 0, 8, 0) };
         copy.Click += (_, _) =>
         {
             try { Clipboard.SetText($"Claude Status {Version}" + (commit is null ? "" : $" ({commit})")); }

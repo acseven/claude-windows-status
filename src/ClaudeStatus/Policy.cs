@@ -11,9 +11,10 @@ namespace ClaudeStatus;
 /// sign-out/shutdown, the installer and a different version taking over still close the app.
 /// AllowedEmailDomains / AllowedOrganizations restrict which Claude accounts and organisations may be
 /// used (fail closed: an account whose e-mail cannot be read is refused when domains are set).
+/// Language ("en" / "pt-PT") forces the interface language, read once at start-up.
 /// </summary>
 public sealed record Policy(int? RefreshMinutes, WidgetStyle? WidgetStyle, bool? DisableNotifications,
-    string[]? AllowedEmailDomains, string[]? AllowedOrganizations, bool DisableUsageHistory, bool DisableExit)
+    string[]? AllowedEmailDomains, string[]? AllowedOrganizations, bool DisableUsageHistory, bool DisableExit, string? Language)
 {
     const string KeyPath = @"SOFTWARE\Policies\ClaudeStatus";
 
@@ -45,7 +46,8 @@ public sealed record Policy(int? RefreshMinutes, WidgetStyle? WidgetStyle, bool?
             ReadList("AllowedEmailDomains")?.Select(d => d.TrimStart('@')).ToArray(),
             ReadList("AllowedOrganizations"),
             noHistory is int h && h != 0,
-            noExit is int x && x != 0);
+            noExit is int x && x != 0,
+            ReadString("Language"));
     }
 
     public bool AllowsEmail(string? email) =>
@@ -54,6 +56,17 @@ public sealed record Policy(int? RefreshMinutes, WidgetStyle? WidgetStyle, bool?
 
     public bool AllowsOrganization(string id) =>
         AllowedOrganizations is null || AllowedOrganizations.Contains(id, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>A REG_SZ value, trimmed; null when absent or empty.</summary>
+    static string? ReadString(string name)
+    {
+        foreach (var hive in new[] { Registry.LocalMachine, Registry.CurrentUser })
+        {
+            using var key = hive.OpenSubKey(KeyPath);
+            if (key?.GetValue(name) is string v && v.Trim().Length > 0) return v.Trim();
+        }
+        return null;
+    }
 
     /// <summary>A REG_SZ list separated by ';', ',' or spaces; null when absent or empty.</summary>
     static string[]? ReadList(string name)

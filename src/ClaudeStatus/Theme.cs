@@ -23,9 +23,9 @@ static class Theme
     {
         if (resetsAt is null) return "";
         var left = resetsAt.Value - DateTimeOffset.Now;
-        if (left <= TimeSpan.Zero) return "now";
-        if (left.TotalDays >= 1) return $"{(int)left.TotalDays}d {left.Hours}h";
-        if (left.TotalHours >= 1) return $"{(int)left.TotalHours}h {left.Minutes:00}m";
-        return $"{Math.Max(1, (int)Math.Ceiling(left.TotalMinutes))}m";
+        if (left <= TimeSpan.Zero) return L.Now;
+        if (left.TotalDays >= 1) return L.Days((int)left.TotalDays, left.Hours);
+        if (left.TotalHours >= 1) return L.Hours((int)left.TotalHours, left.Minutes);
+        return L.Minutes(Math.Max(1, (int)Math.Ceiling(left.TotalMinutes)));
     }
 }

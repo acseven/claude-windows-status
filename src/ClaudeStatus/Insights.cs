@@ -17,7 +17,7 @@ public static class Insights
         var passed = length - (reset - now);
         if (passed < TimeSpan.Zero || passed > length) return null;
         var f = passed / length;
-        return (f, $"{Format(passed)} of {(w.Key == HistoryStore.Session ? "5h" : "7d")} passed");
+        return (f, L.Passed(Format(passed), w.Key == HistoryStore.Session ? "5h" : "7d"));
     }
 
     public sealed record Forecast(string Text, IReadOnlyList<(DateTimeOffset T, double P)> Trend, (DateTimeOffset T, double P)? Projection);
@@ -35,33 +35,31 @@ public static class Insights
         if (trend.Count == 0 || trend[^1].Item1.ToUnixTimeSeconds() != now.ToUnixTimeSeconds()) trend.Add((now, w.Percent));
 
         if (w.Percent >= 100)
-            return new Forecast($"Limit reached – available again in {Theme.Countdown(reset)}.", trend, null);
+            return new Forecast(L.ForecastReached(Theme.Countdown(reset)), trend, null);
 
         var lookback = w.Key == HistoryStore.Session ? TimeSpan.FromHours(1) : TimeSpan.FromDays(1);
         var recent = trend.Where(p => p.Item1 >= now - lookback).ToList();
         if (recent.Count < 2 || (recent[^1].Item1 - recent[0].Item1) < TimeSpan.FromMinutes(10))
-            return new Forecast("Collecting data for a forecast…", trend, null);
+            return new Forecast(L.ForecastCollecting, trend, null);
 
         var perHour = (recent[^1].Item2 - recent[0].Item2) / (recent[^1].Item1 - recent[0].Item1).TotalHours;
         if (perHour <= 0.05)
-            return new Forecast("No recent increase – you are well within this limit.", trend, null);
+            return new Forecast(L.ForecastFlat, trend, null);
 
         var hit = now + TimeSpan.FromHours((100 - w.Percent) / perHour);
         if (hit < reset)
         {
             var early = reset - hit;
             return new Forecast(
-                $"At this pace you reach the limit around {hit.ToLocalTime():HH:mm}" +
-                (w.Key == HistoryStore.Weekly ? $" on {hit.ToLocalTime():ddd}" : "") +
-                $" – {Format(early)} before the reset.",
+                L.ForecastHit(hit.ToLocalTime(), w.Key == HistoryStore.Weekly, Format(early)),
                 trend, (hit, 100));
         }
         var atReset = Math.Min(100, w.Percent + perHour * (reset - now).TotalHours);
-        return new Forecast($"On track for about {atReset:0}% by the reset.", trend, (reset, atReset));
+        return new Forecast(L.ForecastOnTrack(atReset), trend, (reset, atReset));
     }
 
     static string Format(TimeSpan t) =>
-        t.TotalDays >= 1 ? $"{(int)t.TotalDays}d {t.Hours}h" :
-        t.TotalHours >= 1 ? $"{(int)t.TotalHours}h {t.Minutes:00}m" :
-        $"{Math.Max(1, (int)Math.Round(t.TotalMinutes))}m";
+        t.TotalDays >= 1 ? L.Days((int)t.TotalDays, t.Hours) :
+        t.TotalHours >= 1 ? L.Hours((int)t.TotalHours, t.Minutes) :
+        L.Minutes(Math.Max(1, (int)Math.Round(t.TotalMinutes)));
 }
