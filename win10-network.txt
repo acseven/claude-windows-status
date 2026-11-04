@@ -1,0 +1,3 @@
+attempt 1: error=HttpRequestException: claude.ai did not answer in time. Will retry.
+  page: title="" url=https://claude.ai/robots.txt
+attempt 2: status=403 kind=json body={"type":"error","error":{"type":"permission_error","message":"Invalid authorization","details":{"error_code":"account_session_invalid","error_visibility":"user_facing"}},"request_id":"req_011CghwFKm3U

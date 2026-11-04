@@ -1,0 +1,1 @@
+attempt 1: status=403 kind=json body={"type":"error","error":{"type":"permission_error","message":"Invalid authorization","details":{"error_code":"account_session_invalid","error_visibility":"user_facing"}},"request_id":"req_011CghwCxP6u
